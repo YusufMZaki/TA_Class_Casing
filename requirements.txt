@@ -1,5 +1,7 @@
 streamlit
 pandas
+functools
+redis
 numpy
 openpyxl
 altair
