@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
+from time import time
+from math import ceil
 from functools import lru_cache
 import Class_
-import redis
 import numpy as np
 import altair as alt
-
-redis_client = redis.Redis(host="localhost", port=6379, db=0)
+st.set_page_config(layout="wide")
 
 # Data Mentah Properties Casing Design
 Casing_data_ = pd.read_excel(io='Casing_Simplify.xlsx', skiprows=[0, 1], header=[0]) 
@@ -71,8 +71,8 @@ if Bagian == "Surface": Parameter = [13.375, 3000, 1000, "Minimum", 12.259, "Max
 if Bagian == "Intermediate": Parameter = [7.625, 12000, 2500, "Minimum", 6.5, "Minimum", 17.501, 8.942, None, 14.7, 10.8, 1.1, 1.1, 1.6, 8000]
 if Bagian == "Production": Parameter = [5.5, 11000, 3, "Minimum", 4.001, "Maximum", None, 8.942, 8.942, None, 12.8, 1.1, 1.1, 1.6, 5400]
 
-with Tab_Variabel: # Tab Variabel
-    Variabel_key = f"{Bagian}_{Load}_Variabel"
+# Tab Variabel
+with Tab_Variabel: 
 
     # Opsi Variasi OD Casing
     Casing.OD = Class_.OD_index(Casing_subset_OD, Parameter)
@@ -80,34 +80,37 @@ with Tab_Variabel: # Tab Variabel
     # Kedalaman Casing MD
     Casing.MD = Class_.MD_ft(Parameter)
 
+    # Pembagian Kolom Variabel
+    Variabel_left, Variabel_right = st.columns(2) 
+    
     # Length Section
-    Section = Class_.Section(Parameter, Casing.MD)
+    with Variabel_right: Section = Class_.Section(Parameter, Casing.MD)
     Casing.Section_value = Section.iloc[0,0]
     Casing.Section = Section.iloc[0,1]
 
     # Drift Diameter
     Casing_subset_drift = Casing_data[Casing_data.iloc[:,0]==Casing.OD].drop_duplicates(subset='6_Drift Diameter in.').reset_index(drop="index")
-    Drift = Class_.Drift(Parameter, Casing_subset_drift)
+    with Variabel_left: Drift = Class_.Drift(Parameter, Casing_subset_drift)
     Casing.Drift_value = Drift.iloc[0,0]
     Casing.Drift = Drift.iloc[0,1]
 
     # Gradient Fracture
-    Casing.Gfr = Class_.Gradient_Fracture(Parameter, Bagian)
+    with Variabel_left: Casing.Gfr = Class_.Gradient_Fracture(Parameter, Bagian)
 
     # Gradient Gas
-    Casing.Gg = Class_.Gradient_Gas(Bagian, Load)
+    with Variabel_right: Casing.Gg = Class_.Gradient_Gas(Bagian, Load)
 
     # Fluid Density
-    Casing.Fluid = Class_.Fluid_density(Parameter)
+    with Variabel_left: Casing.Fluid = Class_.Fluid_density(Parameter)
 
     # Packer Density
-    Casing.Packer = Class_.Packer_density(Parameter, Bagian)
+    with Variabel_right: Casing.Packer = Class_.Packer_density(Parameter, Bagian)
 
     # Heavy Mud Density
-    Casing.Heavy = Class_.Heavy_density(Parameter, Bagian)
+    with Variabel_right: Casing.Heavy = Class_.Heavy_density(Parameter, Bagian)
 
     # Drill Mud Density
-    Casing.Drill = Class_.Drill_density(Parameter)
+    with Variabel_left: Casing.Drill = Class_.Drill_density(Parameter)
 
     # Design Factor
     Design_Factor = Class_.Design_Factor()
@@ -210,6 +213,7 @@ with Tab_Burst_Collapse:
         },
         use_container_width=True, hide_index=True)
     Casing.Burst_design = pd.DataFrame({"Depth":Burst_table.iloc[:,0], "Design":Burst_table.iloc[:,4]})
+    Class_.altair_chart(pd.melt(Burst_table, id_vars=["Depth"], value_vars=[i for i in Burst_table.columns if i != "Depth"]), "Burst (psi)", Casing.MD, None)
     
 # Collapse Pe
 if Bagian == "Surface" and Load == "Minimum Load": Casing.Collapse_Pressure = Pe_collapse(Casing.Fluid, Casing.MD)
@@ -234,25 +238,28 @@ with Tab_Burst_Collapse:
         },
         use_container_width=True, hide_index=True)
     Casing.Collapse_design = pd.DataFrame({"Depth":Casing.Collapse_table.iloc[:,0], "Design":Casing.Collapse_table.iloc[:,4] if Bagian == "Intermediate" else Casing.Collapse_table.iloc[:,2]})
-
-with Tab_Tension_Biaxial:
+    Class_.altair_chart(pd.melt(Casing.Collapse_table, id_vars=["Depth"], value_vars=[i for i in Casing.Collapse_table.columns if i != "Depth"]), "Collapse (psi)", Casing.MD, None)
+    
+with Tab_Tension_Biaxial: 
     st.subheader("Tension Load")
-    
-    Overpull = st.data_editor(pd.DataFrame({"Overpull Tension Load (lbs)":[100000]}), use_container_width=True, hide_index=True)
-    Casing.Tension_Overpull = Overpull.iloc[0,0]
-    
-    Section_alt_name = "Minimum" if Casing.Section == "Maximum" else "Maximum"
-    Section_alt_min = int(3 if Casing.Section == "Maximum" else ((Casing.Section_value//3) * 3 if Casing.Section_value//3 == Casing.Section_value/3 else (Casing.Section_value//3 + 1) * 3))
-    Section_alt_max = int((Casing.Section_value//3) * 3 if Casing.Section == "Maximum" else Casing.MD)
-    Section_alt = st.data_editor(pd.DataFrame({f"{Section_alt_name} Length Section (ft)":[3 if Casing.Section == "Maximum" else Casing.MD]}), column_config=
-        {
-            f"{Section_alt_name} Length Section (ft)": st.column_config.NumberColumn(help=f"Minimum Length {Section_alt_min} ft and Maximum Length {Section_alt_max} ft", min_value= Section_alt_min, max_value= Section_alt_max,)
-        },
-        use_container_width=True, hide_index=True)
-    Casing.Section_alt = Section_alt.iloc[0,0]
-    
+    Casing_grade, Casing_combination = st.columns(2) # Pembagian Kolom Variasi Casing
+
+with Casing_grade: Overpull = st.data_editor(pd.DataFrame({"Overpull Tension Load (lbs)":[100000]}), use_container_width=True, hide_index=True)
+Casing.Tension_Overpull = Overpull.iloc[0,0]
+
+Section_alt_name = "Minimum" if Casing.Section == "Maximum" else "Maximum"
+Section_alt_min = int(3 if Casing.Section == "Maximum" else ((Casing.Section_value//3) * 3 if Casing.Section_value//3 == Casing.Section_value/3 else (Casing.Section_value//3 + 1) * 3))
+Section_alt_max = int((Casing.Section_value//3) * 3 if Casing.Section == "Maximum" else Casing.MD)
+with Casing_combination: Section_alt = st.data_editor(pd.DataFrame({f"{Section_alt_name} Length Section (ft)":[3 if Casing.Section == "Maximum" else Casing.MD]}), column_config=
+    {
+        f"{Section_alt_name} Length Section (ft)": st.column_config.NumberColumn(help=f"Minimum Length {Section_alt_min} ft and Maximum Length {Section_alt_max} ft", min_value= Section_alt_min, max_value= Section_alt_max,)
+    },
+    use_container_width=True, hide_index=True)
+Casing.Section_alt = Section_alt.iloc[0,0]
+
+
 Parameter = Casing_data[(Casing_data.iloc[:,0]==Casing.OD) & (Casing_data.iloc[:,5] <= Casing.Drift_value if Casing.Drift == "Maximum" else Casing_data.iloc[:,5] >= Casing.Drift_value)].replace("—", None)
-with Tab_Tension_Biaxial: Grade_drop = st.multiselect("Casing Grade", Parameter.iloc[:,2].drop_duplicates())
+with Casing_grade: Grade_drop = st.multiselect("Casing Grade", Parameter.iloc[:,2].drop_duplicates())
 Parameter = Parameter.iloc[:, [0, 1, 2, 5, 11, 12, 16, 23]]
 
 Para_Grade = pd.DataFrame({"Grade":Parameter.iloc[:,2]})
@@ -276,23 +283,43 @@ Casing.Parameter.index = Casing.Parameter.index + 1
 Casing.Parameter = Casing.Parameter[Casing.Parameter.iloc[:,2].isin(Grade_drop) == True if len(Grade_drop) != 0 else Casing.Parameter.iloc[:,2].isin(Grade_drop) == False]
 
 def call(row, col): return Casing.Parameter.loc[row,Casing.Parameter.columns[col]]
-def Between(df, value, known, find):
-    Limit = pd.concat([df, pd.DataFrame({known:[value], find:[np.nan]})])
-    Limit = Limit.sort_values(known, ascending=(True if known == "Depth" else False)).set_index(known).interpolate(method='index')
-    try: return next(iter(set(Limit[find]) - set(df[find])))
-    except: return df[df[known] == value].reset_index(drop="index").loc[0,find]
+def Design_limit(df, value, known, find):
+    if Casing.Burst_design.equals(df) == True: Nama = f"Burst_{value}_{known}_{find}"
+    else: Nama = f"Collapse_{value}_{known}_{find}"
+    if Nama in list(Casing.Between.iloc[:,0]): return Casing.Between.iloc[list(Casing.Between.iloc[:,0]).index(Nama),1]
+    else: 
+        Limit = pd.concat([df, pd.DataFrame({known:[value], find:[np.nan]})])
+        Limit = Limit.sort_values(known, ascending=(True if known == "Depth" else False)).drop_duplicates(subset=known).set_index(known).interpolate(method='index')
+        Casing.Between = pd.concat([Casing.Between, pd.DataFrame({"Nama":[Nama],"Pandas":[Limit]})], ignore_index = True)
+        return Limit
+def Between(df, value, known, find): return Design_limit(df, value, known, find).loc[value,find]
 
 # Penentuan Section Max-Min Casing 
 Set_Section_max = Casing.Section_alt if Casing.Section == "Minimum" else Casing.Section_value
 Set_Section_min = Casing.Section_alt if Casing.Section == "Maximum" else Casing.Section_value
+with Casing_combination: Iterasi_max = st.selectbox("Maximum Casing Combination", (ceil(Casing.MD/Set_Section_max) + i for i in range(3)))
 
-@lru_cache(maxsize=None) 
+@lru_cache(maxsize=None)
 def Tension_Biaxial(index):
     Susunan_Casing = []
     Susunan_Depth = []
     Susunan_Load = []
     Susunan_Collapse = []
     Casing.Tension()
+    if (len(index) != 1) and (list(index)[:-1] in list(Casing.fail_table.iloc[:,0])):
+        for key, val in enumerate(list(Casing.fail_table.iloc[:,0])): 
+            if list(index)[:-1] == val: 
+                for ca in Casing.fail_table.iloc[key,0]: 
+                    Susunan_Casing.append(ca)
+                    Casing.Tension_weight.append(call(ca, 1))
+                for co in Casing.fail_table.iloc[key,1]: Susunan_Collapse.append(co)
+                for lo in Casing.fail_table.iloc[key,2]: Susunan_Load.append(lo)
+                for de in Casing.fail_table.iloc[key,3]: 
+                    Susunan_Depth.append(de)
+                    Casing.Tension_Depth.append(de[1])
+                index = [index[-1]]
+                break
+    
     for z in index:
         if min(Casing.Tension_Depth) == 0: break
         if call(z, 4) < Between(Casing.Collapse_design, min(Casing.Tension_Depth), "Depth", "Design"): break
@@ -320,33 +347,28 @@ def Tension_Biaxial(index):
         Collapse_length = ( (Casing.Biaxial_X * Casing.Tension_Resist) - sum(Weight) - sum(force_sum) ) / call(z, 1)
 
         # Set Section Casing Minimum Pada Kelipatan 3ft - [0] Length Casing Sisa - [1] Collapse Length - [2] Section Limit - [3] Burst Check ===> Kemampuan Length Casing Dari Body Yield
-        Tension_length = min([min(Casing.Tension_Depth), (Collapse_length//3)*3, (Set_Section_max//3)*3, Tension_Burst])
+        Tension_length = min([min(Casing.Tension_Depth), (Collapse_length//3)*3, Set_Section_max, Tension_Burst])
         
         # Collapse Check
         Collapse_lambda = lambda depth: ((call(z, 1) * (min(Casing.Tension_Depth) - depth)) + sum(Weight) + sum(force_sum)) / Casing.Tension_Resist
-        if Tension_length >= Set_Section_min:
-            for depth_false in np.arange(min(Casing.Tension_Depth) - Tension_length, min(Casing.Tension_Depth) - Set_Section_min, 3):
-                try: 
-                    Collapse_check = pd.concat(
-                        [
-                            Casing.Collapse_design, 
-                            pd.DataFrame({
-                                "Depth" :[depth_false], 
-                                "Design":[Between(Casing.Collapse_design, depth_false, "Depth", "Design")]})
-                        ]
-                        ).sort_values("Depth").drop_duplicates(subset='Depth').reset_index(drop="index")
-                    Collapse_check["Check"] = (Biaxial_curve(Collapse_lambda(Collapse_check["Depth"])) * call(z, 4)) - Collapse_check["Design"]
-                except: pass
-                if len(Collapse_check[(Collapse_check["Depth"] >= depth_false) & (Collapse_check["Check"] < 0)]) == 0: break
-            Tension_length = min(Casing.Tension_Depth) - depth_false
-        else: break
+        Collapse_check_limit = Design_limit(Casing.Collapse_design, min(Casing.Tension_Depth), "Depth", "Design")
+        Limit_depth_df = list(Collapse_check_limit.index)
+        Limit_check_df = [(Biaxial_curve(Collapse_lambda(depth)) * call(z, 4)) - design for depth, design in zip(Limit_depth_df, list(Collapse_check_limit["Design"]))]
+        for depth_false in np.arange(min(Casing.Tension_Depth) - Tension_length, min(Casing.Tension_Depth), 3):
+            Limit_false = []
+            Limit_depth = Limit_depth_df + ([] if depth_false in list(Collapse_check_limit.index) else [depth_false])
+            Limit_check = Limit_check_df + ([] if depth_false in list(Collapse_check_limit.index) else [(Biaxial_curve(Collapse_lambda(depth_false)) * call(z, 4)) - Between(Casing.Collapse_design, depth_false, "Depth", "Design")]) 
+            for y in sorted([x for x in Limit_depth if (x >= depth_false) and (x <= min(Casing.Tension_Depth))]): Limit_false.append(Limit_check[Limit_depth.index(y)])
+            if min(Limit_false) >= 0:
+                Tension_length = min(Casing.Tension_Depth) - depth_false
+                break
         
         # Membatasi Nilai Minimum Section Tension_length
         if Tension_length < Set_Section_min: break
         elif Tension_length >= Set_Section_min:
             if Tension_length >= min(Casing.Tension_Depth): Tension_length = min(Casing.Tension_Depth)
-            elif (Tension_length < min(Casing.Tension_Depth)) & (min(Casing.Tension_Depth) - Tension_length < Set_Section_min):
-                if min(Casing.Tension_Depth) - Set_Section_min >= Set_Section_min: Tension_length = min(Casing.Tension_Depth) - Set_Section_min
+            elif (Tension_length < min(Casing.Tension_Depth)) and (min(Casing.Tension_Depth) - Tension_length < Set_Section_min):
+                if min(Casing.Tension_Depth) - Set_Section_min >= Set_Section_min: Tension_length = ((min(Casing.Tension_Depth) - Set_Section_min)//3)*3
                 else: break
         
         # Input Variabel
@@ -359,30 +381,47 @@ def Tension_Biaxial(index):
             Casing.Tension_Depth.append(min(Casing.Tension_Depth) - Tension_length)
         else: break
     
-    if min(Casing.Tension_Depth) == 0: Casing.Tension_Table = pd.concat([Casing.Tension_Table, pd.DataFrame({"combination":[Susunan_Casing], "Collapse":[Susunan_Collapse], "Load":[Susunan_Load], "depth":[Susunan_Depth]})], ignore_index = True)
-    else: Casing.fail.append(list(index))
-
-@lru_cache(maxsize=None) 
-def fail():
-    mantap = []
-    for fail in Casing.fail:
-        for i in list(set(Para_index) - set(fail)): mantap.append(fail + [i])
-    return mantap
+    if min(Casing.Tension_Depth) == 0: 
+        Casing.Tension_Table = pd.concat([Casing.Tension_Table, pd.DataFrame({"combination":[Susunan_Casing], "Collapse":[Susunan_Collapse], "Load":[Susunan_Load], "depth":[Susunan_Depth]})], ignore_index = True)
+        Casing.succ_current.append(Susunan_Casing)
+    elif (len(Susunan_Casing) != 0) and (Susunan_Casing not in list(Casing.fail_table.iloc[:,0])): 
+        Casing.fail_table = pd.concat([Casing.fail_table, pd.DataFrame({"combination":[Susunan_Casing], "Collapse":[Susunan_Collapse], "Load":[Susunan_Load], "depth":[Susunan_Depth]})], ignore_index = True)
+        Casing.fail_current.append(Susunan_Casing)
+        Casing.fail.append(Susunan_Casing)
+        
+Casing.Between = pd.DataFrame({"Nama":[],"Pandas":[]})
+Casing.Tension_Table = pd.DataFrame({"combination":[], "Collapse":[], "Load":[], "depth":[]})
+Casing.fail_table = pd.DataFrame({"combination":[], "Collapse":[], "Load":[], "depth":[]})
 
 with Tab_Tension_Biaxial:
-    
-    Para_index = [i for i in list(Casing.Parameter.index)]       
-    Casing_fail = [[i] for i in Para_index]
-    while len(Casing_fail) != 0:
+    start = time()
+    Para_index = [i for i in list(Casing.Parameter.index)]
+    for casing in [[i] for i in Para_index]: Tension_Biaxial(tuple(casing))
+    Casing_fail = Casing.fail
+    iterasi = 1
+    while (len(Casing_fail) != 0) and (iterasi != Iterasi_max):
+        iterasi += 1
+        Casing.fail = []
         for combination in Casing_fail:
-            if len(Casing.Tension_Table) > 50: break
-            i = []
-            for c in combination: 
-                i.append(c)
-                if (i not in list(Casing.Tension_Table.iloc[:,0])) and (i == list(combination)): Tension_Biaxial(tuple(combination))
-                elif i in list(Casing.Tension_Table.iloc[:,0]): break
-        Casing_fail = []
-    else: st.dataframe(Casing.Tension_Table, use_container_width=True)
-
-    mantap = fail()
-    st.write(mantap)
+            Casing.succ_current = []
+            Casing.fail_current = []
+            for i in list(set(Para_index) - set(combination)):
+                if len(Casing.succ_current) + len(Casing.fail_current) == len(Para_index): break
+                else: Tension_Biaxial(tuple(combination + [i]))
+        Casing_fail = Casing.fail
+        if (iterasi == Iterasi_max) or (len(Casing.fail) == 0): break
+    st.write(time() - start)
+    
+    st.dataframe(Casing.Tension_Table, use_container_width=True)
+    Check_combination = pd.DataFrame(
+        {
+            "combination":[[str(call(row,1)) + (" " if call(row,2).count("") == 6 else " 0") + str(call(row,2).split("-")[1]) + "-" + str(call(row,2).split("-")[0]) for row in locs] for locs in Casing.Tension_Table.iloc[:,0]],
+            "weight":
+                [
+                    round(sum([float(call(row,1) * (depth[0] - depth[1])) for row, depth in zip(locs, depths)]), 2) 
+                    for locs, depths in zip(Casing.Tension_Table.iloc[:,0], Casing.Tension_Table.iloc[:,3])
+                ]
+        }).sort_values("weight")
+    Check_combination_sort = pd.DataFrame({"combination":[], "weight":[]})
+    for wght in Check_combination.drop_duplicates(subset='weight')["weight"]: Check_combination_sort = pd.concat([Check_combination_sort, Check_combination[Check_combination["weight"] == wght].sort_values("combination")])
+    st.dataframe(Check_combination_sort, use_container_width=True)

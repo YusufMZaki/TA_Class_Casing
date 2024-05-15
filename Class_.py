@@ -1,4 +1,5 @@
 import pandas as pd
+import altair as alt
 import streamlit as st
 class Variabel:
     def __init__(self) -> None:
@@ -49,17 +50,21 @@ class Variabel:
         self.Collapse_design = []
 
         # Tension
-        self.Tension_Table = pd.DataFrame({"combination":[], "Collapse":[], "Load":[], "depth":[]})
+        self.Tension_Table = []
         self.Tension_Overpull = 0
         self.Section_alt = 0
         self.Tension_check = [False]
         self.Tension_Depth = []
         self.Tension_Collapse = []
+        self.fail_current = []
+        self.succ_current = []
         self.fail = []
+        self.fail_table = []
         
         self.Tension_Resist = []
         self.Tension_weight = []
         self.Tension_Buoyancy = 0
+        self.Between = []
 
         # Biaxial
         self.Biaxial_X = 0
@@ -103,13 +108,11 @@ class Variabel:
             self.Collapse_table = pd.DataFrame({"Depth":Collapse_depth, "A_psi":Collapse_A, "B_psi":Collapse_B})
             self.Collapse_table["C_psi"] = round(self.Collapse_table["B_psi"] - self.Collapse_table["A_psi"], 2)
             self.Collapse_table["D_psi"] = round(self.Collapse_table["C_psi"] * self.DF_Collapse, 2)
-            self.Collapse_table["M2"] = round(Pressure_eq(self.MD, self.Collapse_table["Depth"]), 2)
+            self.Collapse_table["M2"] = round(Pressure_eq(self.Heavy, self.Collapse_table["Depth"]), 2)
     
     def Tension(self): 
         self.Tension_weight = []
         self.Tension_Depth = [self.MD]
-        self.Tension_Collapse = []
-
 
 def OD_index(Casing_subset_OD, Parameter):
     OD_index = [index for index, value in enumerate(Casing_subset_OD.iloc[:, 0]) if value == Parameter[0]]
@@ -236,3 +239,10 @@ def Surface_Pressure(Bagian, Load, Parameter, Casing):
     if Bagian == "Intermediate" and Load == "Minimum Load": return (0.052 * Casing.Gfr - Casing.Gg) * Casing.MD if Surface_Pressure.iloc[0,1] != "ASP" else Surface_Pressure.iloc[0,0]
     elif Bagian == "Production" and Load == "Minimum Load": return Surface_Pressure.iloc[0,0] - Casing.Gg * Casing.MD if Surface_Pressure.iloc[0,1] != "SITP" else Surface_Pressure.iloc[0,0]
     elif Bagian != "Surface": return Surface_Pressure.iloc[0,0]
+
+def altair_chart(df, title_x, MD, theme_set):
+    return st.altair_chart(alt.Chart(df).mark_line().encode(
+        x = alt.X("value", title=title_x), 
+        y = alt.Y("Depth", title="Depth (ft)", scale=alt.Scale(domain=[0, MD], reverse=True)), 
+        order="Depth", 
+        color=alt.Color('variable', sort=['GOOG'])), theme=theme_set, use_container_width=True)
