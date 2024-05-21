@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
+from streamlit import session_state as ss
 from time import time
 from math import ceil
 from functools import lru_cache
-import Class_
+import Class_ 
 import numpy as np
-import altair as alt
+import altair as alt 
 st.set_page_config(layout="wide")
 
 # Data Mentah Properties Casing Design
@@ -19,6 +20,10 @@ Grade_5C3 = ["H-40", "-50", "J-55", "K-55", "-60", 'M-65', "-70", "C-75", "E-75"
 # Variasi Data OD Casing Design
 Casing_subset_OD = Casing_data.drop_duplicates(subset='1_Size Outside Diameter in. D').reset_index(drop="index")
 
+Casing = Class_.Variabel()
+Manual = Class_.Ten_Bix()
+Catalog = Class_.Ten_Bix()
+
 with st.expander("Pilih Bagian dan Load Casing Design"):
 
     # Pembagian Kolom Pertama
@@ -31,9 +36,8 @@ with st.expander("Pilih Bagian dan Load Casing Design"):
     with Expander_2: Load = st.selectbox('Load',("Maximum Load", "Minimum Load"), label_visibility="collapsed")
 
     # Catalog atau Manual
-    with Expander_3: Catalog = st.selectbox('Catalog',("Catalog", "Manual"), label_visibility="collapsed")
+    with Expander_3: Catalog_select = st.selectbox('Catalog',("Catalog", "Manual"), label_visibility="collapsed")
 
-Casing = Class_.Variabel()
 st.header(Bagian + " Casing Design")
 
 # Persamaan Pressure
@@ -63,64 +67,81 @@ Biaxial_ratio = lambda Correction, Resistance : Correction / Resistance
 Biaxial_curve = lambda Y : ((-0.52 * Y) + (0.2704 * Y**2 - 4 * ( Y**2 - 1 ))**0.5) / 2
 x_distance = lambda X, Body_yield, Weight, Buoyancy, weight : ((X * Body_yield) - Weight - Buoyancy) / weight
 
-# Tab
-Tab_Variabel, Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Variabel", "Burst - Collapse", "Tension - Biaxial", "Casing Design"])
-
 # Example Parameter Surface - Intermediate - Production
 if Bagian == "Surface": Parameter = [13.375, 3000, 1000, "Minimum", 12.259, "Maximum", 14.001, 8.942, None, None, 11, 1.1, 1.1, 1.6, None]
 if Bagian == "Intermediate": Parameter = [7.625, 12000, 2500, "Minimum", 6.5, "Minimum", 17.501, 8.942, None, 14.7, 10.8, 1.1, 1.1, 1.6, 8000]
 if Bagian == "Production": Parameter = [5.5, 11000, 3, "Minimum", 4.001, "Maximum", None, 8.942, 8.942, None, 12.8, 1.1, 1.1, 1.6, 5400]
+
+# Tab
+Tab_Variabel, Tab_Subs, Tab_Cement, Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Casing Variable", "Subsurface Variable", "Mud - Cement", "Burst - Collapse", "Tension - Biaxial", "Casing Design"])
 
 # Tab Variabel
 with Tab_Variabel: 
 
     # Opsi Variasi OD Casing
     Casing.OD = Class_.OD_index(Casing_subset_OD, Parameter)
-
-    # Kedalaman Casing MD
-    Casing.MD = Class_.MD_ft(Parameter)
-
+    if Catalog_select == "Manual":
+        with Tab_Variabel: Cas_Manual, Cas_Total = st.columns([15,1])
+        with Cas_Total: ss["Cas_Total"] = st.number_input("Total", min_value=1, value=1)
+        with Cas_Manual: Class_.Manual_data(ss["Cas_Total"], Casing.OD, Casing_data[Casing_data['1_Size Outside Diameter in. D'] == Casing.OD], Grade_5C3)
+        Manual_data = pd.concat([Casing_data[Casing_data.iloc[:,0] == 0], Class_.Manual_data_pandas(ss).dropna()], ignore_index = True)
+    
     # Pembagian Kolom Variabel
-    Variabel_left, Variabel_right = st.columns(2) 
+    Variabel_left, Variabel_mid, Variabel_right = st.columns(3) 
+    
+    # Kedalaman Casing MD --- MD_ft = df_Input.iloc[list(df_Input.iloc[:,0]).index(f"MD_ft_{Bagian}"),1] 
+    with Variabel_left: MD_ft = Class_.MD_ft(Parameter)
+    Casing.MD = MD_ft.iloc[0,0]
     
     # Length Section
-    with Variabel_right: Section = Class_.Section(Parameter, Casing.MD)
+    with Variabel_mid: Section = Class_.Section(Parameter, Casing.MD)
     Casing.Section_value = Section.iloc[0,0]
     Casing.Section = Section.iloc[0,1]
 
     # Drift Diameter
-    Casing_subset_drift = Casing_data[Casing_data.iloc[:,0]==Casing.OD].drop_duplicates(subset='6_Drift Diameter in.').reset_index(drop="index")
-    with Variabel_left: Drift = Class_.Drift(Parameter, Casing_subset_drift)
+    if Catalog_select == "Manual": Casing.Subset_drift(Manual_data, Casing.OD)
+    else: Casing.Subset_drift(Casing_data, Casing.OD)
+    with Variabel_right: Drift = Class_.Drift(Parameter, Casing.Subset_Drift)
     Casing.Drift_value = Drift.iloc[0,0]
     Casing.Drift = Drift.iloc[0,1]
 
+with Tab_Subs:
+    Subs_left, Subs_mid, Subs_right = st.columns(3) 
+    
     # Gradient Fracture
-    with Variabel_left: Casing.Gfr = Class_.Gradient_Fracture(Parameter, Bagian)
+    with Subs_mid: Casing.Gfr = Class_.Gradient_Fracture(Parameter, Bagian)
 
     # Gradient Gas
-    with Variabel_right: Casing.Gg = Class_.Gradient_Gas(Bagian, Load)
+    with Subs_right: Casing.Gg = Class_.Gradient_Gas(Bagian, Load)
 
     # Fluid Density
-    with Variabel_left: Casing.Fluid = Class_.Fluid_density(Parameter)
+    with Subs_left: Casing.Fluid = Class_.Fluid_density(Parameter)
 
+    # Pembagian Kolom Variabel
+    Subs_Packer, Subs_Ps = st.columns([1,2]) 
+    
     # Packer Density
-    with Variabel_right: Casing.Packer = Class_.Packer_density(Parameter, Bagian)
-
-    # Heavy Mud Density
-    with Variabel_right: Casing.Heavy = Class_.Heavy_density(Parameter, Bagian)
-
-    # Drill Mud Density
-    with Variabel_left: Casing.Drill = Class_.Drill_density(Parameter)
-
+    with Subs_Packer: Casing.Packer = Class_.Packer_density(Parameter, Bagian)
+    
     # Design Factor
     Design_Factor = Class_.Design_Factor()
     Casing.DF_Burst = Design_Factor.iloc[0,0]
     Casing.DF_Collapse = Design_Factor.iloc[0,1]
     Casing.DF_Tension = Design_Factor.iloc[0,2]
-
+    
     # Surface Pressure
-    Casing.Ps = Class_.Surface_Pressure(Bagian, Load, Parameter, Casing)
+    with Subs_Ps: Casing.Ps = Class_.Surface_Pressure(Bagian, Load, Parameter, Casing)
 
+with Tab_Cement:
+    
+    Variabel_Drill, Variabel_Heavy = st.columns(2)
+
+    # Heavy Mud Density
+    with Variabel_Heavy: Casing.Heavy = Class_.Heavy_density(Parameter, Bagian)
+
+    # Drill Mud Density
+    with Variabel_Drill: Casing.Drill = Class_.Drill_density(Parameter)
+    
     # Cement
     def jumlah_(): # Edit Value Cement Top dan Density Pertama Setelah Jumlah Variasi Berubah
         st.session_state.Top_0 = 0
@@ -173,7 +194,8 @@ with Tab_Variabel:
     cement_delta = [cement_list[0]] + [cement_list[x + 1] - cement_list[x] for x in range(jumlah)]
     cement_delta_pressure = [Pressure_eq(density, depth) for density, depth in zip([Casing.Drill] + ppg_list, cement_delta)]
 
-with Tab_Burst_Collapse:
+with Tab_Burst_Collapse:Burst_side, Collapse_side = st.columns(2) # Pembagian Kolom Burst-Collapse
+with Burst_side:
     st.subheader("Burst Load")
     # Safety Factor
     if Bagian != "Production": Casing.SF = st.number_input("Safety Factor", value=1.00 if Load == "Maximum Load" else 0, placeholder="Input Safety Factor...", disabled=False if Load == "Maximum Load" else True)
@@ -199,7 +221,7 @@ else: Casing.Burst_Pe = Pe_burst(Casing.Fluid, Casing.MD)
 # Burst Rule
 Casing.Burst(Bagian, Load, Pe_burst, cement_list, cement_delta_pressure)
 
-with Tab_Burst_Collapse:
+with Burst_side:
     
     Burst_table = pd.DataFrame({"Depth":Casing.Burst_depth, "A_psi":Casing.Burst_A, "B_psi":Casing.Burst_B})
     Burst_table["C_psi"] = round(Burst_table["A_psi"] - Burst_table["B_psi"], 2)
@@ -213,12 +235,12 @@ with Tab_Burst_Collapse:
         },
         use_container_width=True, hide_index=True)
     Casing.Burst_design = pd.DataFrame({"Depth":Burst_table.iloc[:,0], "Design":Burst_table.iloc[:,4]})
-    Class_.altair_chart(pd.melt(Burst_table, id_vars=["Depth"], value_vars=[i for i in Burst_table.columns if i != "Depth"]), "Burst (psi)", Casing.MD, None)
-    
+    st.altair_chart(Class_.altair_chart(pd.melt(Burst_table, id_vars=["Depth"], value_vars=[i for i in Burst_table.columns if i != "Depth"]), "Burst (psi)", Casing.MD), theme="streamlit", use_container_width=True)
+
 # Collapse Pe
 if Bagian == "Surface" and Load == "Minimum Load": Casing.Collapse_Pressure = Pe_collapse(Casing.Fluid, Casing.MD)
 
-# Collapse P3 
+# Collapse P3
 if Bagian == "Intermediate" and Load == "Maximum Load": Casing.Collapse_D3 = (Pressure_eq(Casing.Heavy, Casing.MD) - Pressure_eq(Casing.Fluid, Casing.MD)) / (0.052 * Casing.Heavy)
 elif Bagian == "Intermediate" and Load == "Minimum Load": Casing.Collapse_D3 = 0.5 * Casing.MD
 if Bagian == "Intermediate": Casing.Collapse_P3 = Pe_collapse(Casing.Heavy, Casing.MD - Casing.Collapse_D3)
@@ -226,7 +248,7 @@ if Bagian == "Intermediate": Casing.Collapse_P3 = Pe_collapse(Casing.Heavy, Casi
 # Collapse Rule
 Casing.Collapse(Bagian, Load, cement_delta, cement_delta_pressure, ppg_list, cement_list, Pressure_eq)
 
-with Tab_Burst_Collapse:
+with Collapse_side:
     st.subheader("Collapse Load")
     st.dataframe(Casing.Collapse_table, column_config=
         {
@@ -238,11 +260,13 @@ with Tab_Burst_Collapse:
         },
         use_container_width=True, hide_index=True)
     Casing.Collapse_design = pd.DataFrame({"Depth":Casing.Collapse_table.iloc[:,0], "Design":Casing.Collapse_table.iloc[:,4] if Bagian == "Intermediate" else Casing.Collapse_table.iloc[:,2]})
-    Class_.altair_chart(pd.melt(Casing.Collapse_table, id_vars=["Depth"], value_vars=[i for i in Casing.Collapse_table.columns if i != "Depth"]), "Collapse (psi)", Casing.MD, None)
-    
-with Tab_Tension_Biaxial: 
+    st.altair_chart(Class_.altair_chart(pd.melt(Casing.Collapse_table, id_vars=["Depth"], value_vars=[i for i in Casing.Collapse_table.columns if i != "Depth"]), "Collapse (psi)", Casing.MD), theme="streamlit", use_container_width=True)
+
+with Tab_Tension_Biaxial:
     st.subheader("Tension Load")
     Casing_grade, Casing_combination = st.columns(2) # Pembagian Kolom Variasi Casing
+    st.subheader("Biaxial Load")
+    Casing_manual, Casing_catalog = st.columns(2) # Pembagian Kolom Chart
 
 with Casing_grade: Overpull = st.data_editor(pd.DataFrame({"Overpull Tension Load (lbs)":[100000]}), use_container_width=True, hide_index=True)
 Casing.Tension_Overpull = Overpull.iloc[0,0]
@@ -257,171 +281,97 @@ with Casing_combination: Section_alt = st.data_editor(pd.DataFrame({f"{Section_a
     use_container_width=True, hide_index=True)
 Casing.Section_alt = Section_alt.iloc[0,0]
 
-
-Parameter = Casing_data[(Casing_data.iloc[:,0]==Casing.OD) & (Casing_data.iloc[:,5] <= Casing.Drift_value if Casing.Drift == "Maximum" else Casing_data.iloc[:,5] >= Casing.Drift_value)].replace("—", None)
-with Casing_grade: Grade_drop = st.multiselect("Casing Grade", Parameter.iloc[:,2].drop_duplicates())
-Parameter = Parameter.iloc[:, [0, 1, 2, 5, 11, 12, 16, 23]]
-
-Para_Grade = pd.DataFrame({"Grade":Parameter.iloc[:,2]})
-Para_Grade["Split"] = Para_Grade["Grade"].str.split("-")
-Para_Split = pd.DataFrame({"Split_A":[split[0] for split in Para_Grade["Split"]], "Split_B":[int(split[1]) for split in Para_Grade["Split"]], "Grade":Parameter.iloc[:,2]}).replace("","A")
-add_index = Para_Split[Para_Split.iloc[:,0] == 0]
-for value in Para_Split.sort_values(by=["Split_B"]).iloc[:,1].drop_duplicates():
-    add = Para_Split[Para_Split.iloc[:,1] == value].sort_values(by=["Split_A"])
-    add_index = pd.concat([add_index, add])
-
-if len(Parameter) > 1: # Mengurutkan Casing Properties Berdasarkan Nominal Weight dan Grade (dari index)
-    Casing.Parameter = Parameter[Parameter.iloc[:,2] == 0]
-    for weight in sorted(Parameter.iloc[:,1].drop_duplicates()):
-        add_weight = Parameter[Parameter.iloc[:,1] == weight]
-        for grade in add_index["Grade"].drop_duplicates():
-            add = add_weight[add_weight.iloc[:,2] == grade]
-            if len(add) == 0: continue
-            else: Casing.Parameter = pd.concat([Casing.Parameter, add], ignore_index = True)
-else: Casing.Parameter = Parameter
-Casing.Parameter.index = Casing.Parameter.index + 1
-Casing.Parameter = Casing.Parameter[Casing.Parameter.iloc[:,2].isin(Grade_drop) == True if len(Grade_drop) != 0 else Casing.Parameter.iloc[:,2].isin(Grade_drop) == False]
-
-def call(row, col): return Casing.Parameter.loc[row,Casing.Parameter.columns[col]]
-def Design_limit(df, value, known, find):
-    if Casing.Burst_design.equals(df) == True: Nama = f"Burst_{value}_{known}_{find}"
-    else: Nama = f"Collapse_{value}_{known}_{find}"
-    if Nama in list(Casing.Between.iloc[:,0]): return Casing.Between.iloc[list(Casing.Between.iloc[:,0]).index(Nama),1]
-    else: 
-        Limit = pd.concat([df, pd.DataFrame({known:[value], find:[np.nan]})])
-        Limit = Limit.sort_values(known, ascending=(True if known == "Depth" else False)).drop_duplicates(subset=known).set_index(known).interpolate(method='index')
-        Casing.Between = pd.concat([Casing.Between, pd.DataFrame({"Nama":[Nama],"Pandas":[Limit]})], ignore_index = True)
-        return Limit
-def Between(df, value, known, find): return Design_limit(df, value, known, find).loc[value,find]
+# HARUSNYA DISINI PARAMETER CASING NYA
+if Catalog_select == "Manual": Manual.Parameter_df(Manual_data, Casing)
+Catalog.Parameter_df(Casing_data, Casing)
+with Casing_grade: 
+    if Catalog_select == "Manual": Grade_drop = st.multiselect("Casing Grade", Manual.Para_df.iloc[:,2].drop_duplicates())
+    else: Grade_drop = st.multiselect("Casing Grade", Catalog.Para_df.iloc[:,2].drop_duplicates())
+if Catalog_select == "Manual": Manual.Parameter_sort(Grade_drop)
+Catalog.Parameter_sort(Grade_drop)
 
 # Penentuan Section Max-Min Casing 
 Set_Section_max = Casing.Section_alt if Casing.Section == "Minimum" else Casing.Section_value
 Set_Section_min = Casing.Section_alt if Casing.Section == "Maximum" else Casing.Section_value
-with Casing_combination: Iterasi_max = st.selectbox("Maximum Casing Combination", (ceil(Casing.MD/Set_Section_max) + i for i in range(3)))
+with Casing_combination: Iterasi_max = st.selectbox("Maximum Casing Combination", (ceil(Casing.MD/Set_Section_max) + i for i in range(10)))
 
-@lru_cache(maxsize=None)
-def Tension_Biaxial(index):
-    Susunan_Casing = []
-    Susunan_Depth = []
-    Susunan_Load = []
-    Susunan_Collapse = []
-    Casing.Tension()
-    if (len(index) != 1) and (list(index)[:-1] in list(Casing.fail_table.iloc[:,0])):
-        for key, val in enumerate(list(Casing.fail_table.iloc[:,0])): 
-            if list(index)[:-1] == val: 
-                for ca in Casing.fail_table.iloc[key,0]: 
-                    Susunan_Casing.append(ca)
-                    Casing.Tension_weight.append(call(ca, 1))
-                for co in Casing.fail_table.iloc[key,1]: Susunan_Collapse.append(co)
-                for lo in Casing.fail_table.iloc[key,2]: Susunan_Load.append(lo)
-                for de in Casing.fail_table.iloc[key,3]: 
-                    Susunan_Depth.append(de)
-                    Casing.Tension_Depth.append(de[1])
-                index = [index[-1]]
-                break
-    
-    for z in index:
-        if min(Casing.Tension_Depth) == 0: break
-        if call(z, 4) < Between(Casing.Collapse_design, min(Casing.Tension_Depth), "Depth", "Design"): break
-        elif  call(z, 6) < Between(Casing.Burst_design, min(Casing.Tension_Depth), "Depth", "Design"): break
-        
-        # Burst Check
-        Burst_check = Casing.Burst_design[Casing.Burst_design.iloc[:,1] >= call(z, 6)]
-        try: Tension_Burst = ((Casing.MD - Between(Casing.Burst_design[Casing.Burst_design.iloc[:,0] >= Burst_check.iloc[-1,0]], call(z, 6), "Design", "Depth"))//3)*3
-        except: Tension_Burst = Casing.MD
-        
-        Casing.Biaxial_X = Biaxial_curve(Biaxial_ratio(Between(Casing.Collapse_design, min(Casing.Tension_Depth), "Depth", "Design"), call(z, 4)))
-        Casing.Tension_Resist = min([call(z, 5), call(z, 7)]) * 1000 # Yield or Joint
-        
-        # Weight (lb) = weight_unit (lb/ft) * Tension_Depth (ft) ==> used
-        Weight = [0] if len(Casing.Tension_weight) == 0 else [weight * (depth[0] - depth[1]) for weight, depth in zip(Casing.Tension_weight, Susunan_Depth)]
-        
-        # weight_unit (lb/ft)
-        Casing.Tension_weight.append(call(z, 1))
-        
-        # Force (lb) = pressure (psi = lb/sq in) * Cross Sectional Area (sq in)
-        force_ = [0] + [Force(Casing.Drill, depth, weight)for depth, weight in zip(Casing.Tension_Depth, Casing.Tension_weight)]
-        force_sum = [force_[i] - force_[i + 1] for i in range(len(Casing.Tension_weight))]
-        
-        # Menentukan Kemampuan Panjang Collapse Yang Mampu Ditahan Oleh Casing
-        Collapse_length = ( (Casing.Biaxial_X * Casing.Tension_Resist) - sum(Weight) - sum(force_sum) ) / call(z, 1)
+if Catalog_select == "Manual": Manual.Preparation()
+Catalog.Preparation()
 
-        # Set Section Casing Minimum Pada Kelipatan 3ft - [0] Length Casing Sisa - [1] Collapse Length - [2] Section Limit - [3] Burst Check ===> Kemampuan Length Casing Dari Body Yield
-        Tension_length = min([min(Casing.Tension_Depth), (Collapse_length//3)*3, Set_Section_max, Tension_Burst])
-        
-        # Collapse Check
-        Collapse_lambda = lambda depth: ((call(z, 1) * (min(Casing.Tension_Depth) - depth)) + sum(Weight) + sum(force_sum)) / Casing.Tension_Resist
-        Collapse_check_limit = Design_limit(Casing.Collapse_design, min(Casing.Tension_Depth), "Depth", "Design")
-        Limit_depth_df = list(Collapse_check_limit.index)
-        Limit_check_df = [(Biaxial_curve(Collapse_lambda(depth)) * call(z, 4)) - design for depth, design in zip(Limit_depth_df, list(Collapse_check_limit["Design"]))]
-        for depth_false in np.arange(min(Casing.Tension_Depth) - Tension_length, min(Casing.Tension_Depth), 3):
-            Limit_false = []
-            Limit_depth = Limit_depth_df + ([] if depth_false in list(Collapse_check_limit.index) else [depth_false])
-            Limit_check = Limit_check_df + ([] if depth_false in list(Collapse_check_limit.index) else [(Biaxial_curve(Collapse_lambda(depth_false)) * call(z, 4)) - Between(Casing.Collapse_design, depth_false, "Depth", "Design")]) 
-            for y in sorted([x for x in Limit_depth if (x >= depth_false) and (x <= min(Casing.Tension_Depth))]): Limit_false.append(Limit_check[Limit_depth.index(y)])
-            if min(Limit_false) >= 0:
-                Tension_length = min(Casing.Tension_Depth) - depth_false
-                break
-        
-        # Membatasi Nilai Minimum Section Tension_length
-        if Tension_length < Set_Section_min: break
-        elif Tension_length >= Set_Section_min:
-            if Tension_length >= min(Casing.Tension_Depth): Tension_length = min(Casing.Tension_Depth)
-            elif (Tension_length < min(Casing.Tension_Depth)) and (min(Casing.Tension_Depth) - Tension_length < Set_Section_min):
-                if min(Casing.Tension_Depth) - Set_Section_min >= Set_Section_min: Tension_length = ((min(Casing.Tension_Depth) - Set_Section_min)//3)*3
-                else: break
-        
-        # Input Variabel
-        Tension_check = Collapse_lambda(min(Casing.Tension_Depth) - Tension_length) * Casing.Tension_Resist
-        if Casing.Tension_Resist >= max([Tension_check*Casing.DF_Tension, Tension_check + Casing.Tension_Overpull]):
-            Susunan_Casing.append(z)
-            Susunan_Collapse.append([round(Biaxial_curve(Collapse_lambda(depth)) * call(z, 4), 2) for depth in [min(Casing.Tension_Depth), min(Casing.Tension_Depth) - Tension_length]])
-            Susunan_Load.append([round(Collapse_lambda(depth) * Casing.Tension_Resist, 2) for depth in [min(Casing.Tension_Depth), min(Casing.Tension_Depth) - Tension_length]])
-            Susunan_Depth.append([min(Casing.Tension_Depth), min(Casing.Tension_Depth) - Tension_length])
-            Casing.Tension_Depth.append(min(Casing.Tension_Depth) - Tension_length)
-        else: break
-    
-    if min(Casing.Tension_Depth) == 0: 
-        Casing.Tension_Table = pd.concat([Casing.Tension_Table, pd.DataFrame({"combination":[Susunan_Casing], "Collapse":[Susunan_Collapse], "Load":[Susunan_Load], "depth":[Susunan_Depth]})], ignore_index = True)
-        Casing.succ_current.append(Susunan_Casing)
-    elif (len(Susunan_Casing) != 0) and (Susunan_Casing not in list(Casing.fail_table.iloc[:,0])): 
-        Casing.fail_table = pd.concat([Casing.fail_table, pd.DataFrame({"combination":[Susunan_Casing], "Collapse":[Susunan_Collapse], "Load":[Susunan_Load], "depth":[Susunan_Depth]})], ignore_index = True)
-        Casing.fail_current.append(Susunan_Casing)
-        Casing.fail.append(Susunan_Casing)
-        
-Casing.Between = pd.DataFrame({"Nama":[],"Pandas":[]})
-Casing.Tension_Table = pd.DataFrame({"combination":[], "Collapse":[], "Load":[], "depth":[]})
-Casing.fail_table = pd.DataFrame({"combination":[], "Collapse":[], "Load":[], "depth":[]})
+start = time()
+if Catalog_select == "Manual": 
+    with Casing_grade: Manual.Design("Manual", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
+with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
+    Catalog.Design("API 5C2", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
+    # st.write(round(time() - start, 2))
 
-with Tab_Tension_Biaxial:
-    start = time()
-    Para_index = [i for i in list(Casing.Parameter.index)]
-    for casing in [[i] for i in Para_index]: Tension_Biaxial(tuple(casing))
-    Casing_fail = Casing.fail
-    iterasi = 1
-    while (len(Casing_fail) != 0) and (iterasi != Iterasi_max):
-        iterasi += 1
-        Casing.fail = []
-        for combination in Casing_fail:
-            Casing.succ_current = []
-            Casing.fail_current = []
-            for i in list(set(Para_index) - set(combination)):
-                if len(Casing.succ_current) + len(Casing.fail_current) == len(Para_index): break
-                else: Tension_Biaxial(tuple(combination + [i]))
-        Casing_fail = Casing.fail
-        if (iterasi == Iterasi_max) or (len(Casing.fail) == 0): break
-    st.write(time() - start)
+start = time()
+if Catalog_select == "Manual": 
+    with Casing_grade: Manual.Concat(Biaxial_curve, Casing)
+with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
+    Catalog.Concat(Biaxial_curve, Casing)
+    # st.write(round(time() - start, 2))
+
+# st.dataframe(Catalog.Altair, use_container_width=True)
+Burst_des = Class_.altair_chart(pd.melt(Casing.Burst_design, id_vars=["Depth"], value_vars=[i for i in Casing.Burst_design.columns if i != "Depth"]), "Burst (psi)", Casing.MD)
+Coll_des = Class_.altair_chart(pd.melt(Casing.Collapse_design, id_vars=["Depth"], value_vars=[i for i in Casing.Collapse_design.columns if i != "Depth"]), "Collapse (psi)", Casing.MD)    
+
+def Pd_Altair(tbl, x_axis): return Class_.altair_chart(pd.melt(tbl, id_vars=["Depth"], value_vars=[i for i in tbl.columns if i != "Depth"]), x_axis, Casing.MD)
+def Altair_sort_BiColl(self):
     
-    st.dataframe(Casing.Tension_Table, use_container_width=True)
-    Check_combination = pd.DataFrame(
-        {
-            "combination":[[str(call(row,1)) + (" " if call(row,2).count("") == 6 else " 0") + str(call(row,2).split("-")[1]) + "-" + str(call(row,2).split("-")[0]) for row in locs] for locs in Casing.Tension_Table.iloc[:,0]],
-            "weight":
-                [
-                    round(sum([float(call(row,1) * (depth[0] - depth[1])) for row, depth in zip(locs, depths)]), 2) 
-                    for locs, depths in zip(Casing.Tension_Table.iloc[:,0], Casing.Tension_Table.iloc[:,3])
-                ]
-        }).sort_values("weight")
-    Check_combination_sort = pd.DataFrame({"combination":[], "weight":[]})
-    for wght in Check_combination.drop_duplicates(subset='weight')["weight"]: Check_combination_sort = pd.concat([Check_combination_sort, Check_combination[Check_combination["weight"] == wght].sort_values("combination")])
-    st.dataframe(Check_combination_sort, use_container_width=True)
+    loc = self.location
+    st.dataframe(self.Altair.iloc[loc-1,0].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.altair_chart(Pd_Altair(self.Altair.iloc[loc-1,0], "Burst (psi)") + Burst_des, theme="streamlit", use_container_width=True)
+    
+    st.dataframe(self.Altair.iloc[loc-1,1].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.altair_chart(Pd_Altair(self.Altair.iloc[loc-1,1], "Collapse (psi)") + Coll_des, theme="streamlit", use_container_width=True)
+    
+def Altair_sort_TenBix(self):
+    
+    loc = self.location
+    Tension_Load = pd.melt(self.Altair.iloc[loc-1,3], id_vars=["Depth"], value_vars=[i for i in self.Altair.iloc[loc-1,3].columns if i != "Depth"])
+    Tension_Load_over = pd.melt(self.Altair.iloc[loc-1,4], id_vars=["Depth"], value_vars=[i for i in self.Altair.iloc[loc-1,3].columns if i != "Depth"])
+    Tension_Load_DF = pd.melt(self.Altair.iloc[loc-1,5], id_vars=["Depth"], value_vars=[i for i in self.Altair.iloc[loc-1,3].columns if i != "Depth"])
+    
+    Tension_Load["variable"] = "Load"
+    Tension_Load_over["variable"] = "Load + Overpull"
+    Tension_Load_DF["variable"] = "Load x DF_Tension"
+    
+    st.dataframe(pd.DataFrame({"Depth":Tension_Load["Depth"], "Load":Tension_Load["value"], "Load + Overpull":Tension_Load_over["value"], "Load x DF_Tension":Tension_Load_DF["value"]}).dropna().reset_index(drop="index").sort_index(ascending=False), use_container_width=True, hide_index=True)
+    st.dataframe(self.Altair.iloc[loc-1,2].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.altair_chart(
+        Class_.altair_chart(Tension_Load.dropna(), "Tension (lbs)", Casing.MD) + Class_.altair_chart(Tension_Load_over.dropna(), "Tension (lbs)", Casing.MD) +
+        Class_.altair_chart(Tension_Load_DF.dropna(), "Tension (lbs)", Casing.MD) + Pd_Altair(self.Altair.iloc[loc-1,2], "Tension (lbs)"),
+        theme="streamlit", use_container_width=True) 
+    
+def Altair_sort_Bix_XY(self):
+    
+    loc = self.location
+    st.write("X")
+    st.dataframe(self.Altair.iloc[loc-1,6].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.write("Y")
+    st.dataframe(self.Altair.iloc[loc-1,7].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.write("Collapse Resistance")
+    st.dataframe(self.Altair.iloc[loc-1,8].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.write("Collapse Correction")
+    st.dataframe(self.Altair.iloc[loc-1,1].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.altair_chart(Pd_Altair(self.Altair.iloc[loc-1,1], "Collapse (psi)") + Pd_Altair(self.Altair.iloc[loc-1,8], "Collapse (psi)"), theme="streamlit", use_container_width=True)
+    
+if Catalog_select == "Manual": 
+    with Casing_grade: Manual.location = 0 if len(Manual.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Manual.Tension_Table) > 10 else len(Manual.Tension_Table), 1)
+with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
+    Catalog.location = 0 if len(Catalog.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Catalog.Tension_Table) > 10 else len(Catalog.Tension_Table), 1)
+
+start = time()
+if Catalog_select == "Manual": 
+    with Casing_grade: Altair_sort_TenBix(Manual)
+with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
+    Altair_sort_TenBix(Catalog)
+    # st.write(round(time() - start, 2))
+
+start = time()
+if Catalog_select == "Manual": 
+    with Casing_manual: Altair_sort_Bix_XY(Manual)
+with (Casing_catalog if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
+    Altair_sort_Bix_XY(Catalog)
+    # st.write(round(time() - start, 2))
