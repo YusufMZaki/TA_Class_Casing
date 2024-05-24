@@ -4,7 +4,7 @@ from streamlit import session_state as ss
 from time import time
 from math import ceil
 from functools import lru_cache
-import Class_
+import Class_ 
 import numpy as np
 import altair as alt 
 st.set_page_config(layout="wide")
@@ -301,14 +301,11 @@ if Catalog_select == "Manual":
     with Casing_grade: Manual.Design("Manual", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
     Catalog.Design("API 5C2", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
-    # st.write(round(time() - start, 2))
 
-start = time()
 if Catalog_select == "Manual": 
     with Casing_grade: Manual.Concat(Biaxial_curve, Casing)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
     Catalog.Concat(Biaxial_curve, Casing)
-    # st.write(round(time() - start, 2))
 
 if Catalog_select == "Manual": Manual_intersection = Class_.Table_intersection(Manual, Manual.Tension_Table)
 Catalog_intersection = Class_.Table_intersection(Catalog, Catalog.Tension_Table)
@@ -385,23 +382,19 @@ if Catalog_select == "Manual":
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
     Catalog.location = 1 if len(Catalog.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Catalog.Tension_Table) > 10 else len(Catalog.Tension_Table), 1)
 
-start = time()
 if Catalog_select == "Manual": 
     with Casing_grade: Altair_sort_TenBix(Manual)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
     Altair_sort_TenBix(Catalog)
-    # st.write(round(time() - start, 2))
 
 with Tab_Tension_Biaxial:
     st.subheader("Biaxial Load")
     Casing_manual, Casing_catalog = st.columns(2) # Pembagian Kolom Chart
     
-start = time()
 if Catalog_select == "Manual": 
     with Casing_manual: Manual_XY_Altair = Altair_sort_Bix_XY(Manual, Manual_intersection)
 with (Casing_catalog if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
     Catalog_XY_Altair = Altair_sort_Bix_XY(Catalog, Catalog_intersection)
-    # st.write(round(time() - start, 2))
 
 def Casing_design_used(self): return self.Parameter.loc[[comb for comb in self.Tension_Table.iloc[self.location-1,0]]].rename(columns={col:name for col, name in zip(self.Parameter.columns, Class_.Parameter_column_name())})
 with Tab_Result:
@@ -413,20 +406,17 @@ with Tab_Result:
     st.subheader("Casing Performance Against Burst")
     Result_manual, Result_catalog = st.columns(2)
     
-start = time()
 if Catalog_select == "Manual": 
     with Result_manual: Altair_sort_Bu(Manual, Manual_XY_Altair[0])
 with (Result_catalog if Catalog_select == "Manual" else Tab_Result): 
     Altair_sort_Bu(Catalog, Catalog_XY_Altair[0])
-    # st.write(round(time() - start, 2))
 
 with Tab_Result:
     st.subheader("Casing Performance Against Collapse")
     Result_manual_, Result_catalog_ = st.columns(2)
     
-start = time()
 if Catalog_select == "Manual": 
     with Result_manual_: Altair_sort_Co(Manual, Manual_XY_Altair[1])
 with (Result_catalog_ if Catalog_select == "Manual" else Tab_Result): 
     Altair_sort_Co(Catalog, Catalog_XY_Altair[1])
-    # st.write(round(time() - start, 2))
+    st.write(round(time() - start, 2))
