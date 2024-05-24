@@ -4,6 +4,3 @@ numpy
 openpyxl
 altair
 shapely
-time
-math
-functools
