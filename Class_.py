@@ -3,6 +3,7 @@ import pandas as pd
 import altair as alt
 import streamlit as st
 from functools import lru_cache
+from shapely.geometry import LineString
 class Variabel:
     def __init__(self) -> None:
         
@@ -12,7 +13,7 @@ class Variabel:
         self.OD = 0
         self.MD = 0
         self.Section_value = 0
-        self.Section = "Minimum"
+        self.Section = "Minimum" 
         self.Drift_value = 0
         self.Drift = "Minimum"
         self.Gfr = 0
@@ -189,22 +190,6 @@ class Ten_Bix:
         
         for z in index:
             if min(self.Tension_Depth) == 0: break
-            if self.call(z, 4) < self.Between_df(Casing, Casing.Collapse_design, min(self.Tension_Depth), "Depth", "Design"): break
-            elif  self.call(z, 6) < self.Between_df(Casing, Casing.Burst_design, min(self.Tension_Depth), "Depth", "Design"): break
-            
-            # Burst Check
-            Burst_check_limit = self.Design_limit(Casing, Casing.Burst_design, min(self.Tension_Depth), "Depth", "Design")
-            Burst_check_limit = Burst_check_limit[Burst_check_limit.index <= min(self.Tension_Depth)]
-            if len(list(Burst_check_limit[Burst_check_limit["Design"] > self.call(z, 6)].index)) != 0:
-                Burst_max = max(list(Burst_check_limit[Burst_check_limit["Design"] > self.call(z, 6)].index))
-                Burst_check = pd.DataFrame(
-                    {
-                        "Depth":[dpth for dpth in Burst_check_limit.index if dpth >= Burst_max] + [None],
-                        "Design":[dsgn for dsgn, dpth in zip(Burst_check_limit.iloc[:,0], Burst_check_limit.index) if dpth >= Burst_max] + [self.call(z, 6)]
-                    }
-                    ).sort_values("Design").set_index("Design").interpolate(method='index')
-                Burst_depth = ((min(self.Tension_Depth) - Burst_check.loc[self.call(z, 6), "Depth"])//3)*3
-            else: Burst_depth = min(self.Tension_Depth)
             
             self.Biaxial_X = Biaxial_curve(Biaxial_ratio(self.Between_df(Casing, Casing.Collapse_design, min(self.Tension_Depth), "Depth", "Design"), self.call(z, 4)))
             self.Tension_Resist = min([self.call(z, 5), self.call(z, 7)]) * 1000 # Yield or Joint
@@ -221,24 +206,19 @@ class Ten_Bix:
             
             # Menentukan Kemampuan Panjang Collapse Yang Mampu Ditahan Oleh Casing
             Collapse_length = ( (self.Biaxial_X * self.Tension_Resist) - sum(Weight) - sum(force_sum) ) / self.call(z, 1)
-
-            # Set Section Casing Minimum Pada Kelipatan 3ft - [0] Length Casing Sisa - [1] Collapse Length - [2] Section Limit - [3] Burst Check ===> Kemampuan Length Casing Dari Body Yield
-            Tension_length = min([min(self.Tension_Depth), (Collapse_length//3)*3, Set_Section_max, Burst_depth])
+            Tenratio = lambda depth: ((self.call(z, 1) * (min(self.Tension_Depth) - depth)) + sum(Weight) + sum(force_sum)) / self.Tension_Resist
             
-            # Collapse Check
-            Collapse_lambda = lambda depth: ((self.call(z, 1) * (min(self.Tension_Depth) - depth)) + sum(Weight) + sum(force_sum)) / self.Tension_Resist
-            Collapse_check_limit = self.Design_limit(Casing, Casing.Collapse_design, min(self.Tension_Depth), "Depth", "Design")
-            Limit_depth_df = list(Collapse_check_limit.index)
-            Limit_check_df = [(Biaxial_curve(Collapse_lambda(depth)) * self.call(z, 4)) - design for depth, design in zip(Limit_depth_df, list(Collapse_check_limit["Design"]))]
-            for depth_false in np.arange(min(self.Tension_Depth) - Tension_length, min(self.Tension_Depth), 3):
-                Limit_false = []
-                Limit_depth = Limit_depth_df + ([] if depth_false in Limit_depth_df else [depth_false])
-                Limit_check = Limit_check_df + ([] if depth_false in Limit_depth_df else [(Biaxial_curve(Collapse_lambda(depth_false)) * self.call(z, 4)) - self.Between_df(Casing, Casing.Collapse_design, depth_false, "Depth", "Design")]) 
-                for y in sorted([x for x in Limit_depth if (x >= depth_false) and (x <= min(self.Tension_Depth))]): Limit_false.append(Limit_check[Limit_depth.index(y)])
-                if min(Limit_false) >= 0: 
-                    Tension_length = min(self.Tension_Depth) - depth_false
-                    break
-                if depth_false == max(list(np.arange(min(self.Tension_Depth) - Tension_length, min(self.Tension_Depth), 3))): Tension_length = min(self.Tension_Depth) - depth_false
+            # Check
+            Check_intersect = Check_intersect_df(self.call(z, 6), self.call(z, 4), 0, int(min(self.Tension_Depth)), Biaxial_curve, Tenratio)
+            
+            if Check_intersect.iloc[-1,2] < self.Between_df(Casing, Casing.Collapse_design, min(self.Tension_Depth), "Depth", "Design"): break
+            elif  Check_intersect.iloc[-1,1] < self.Between_df(Casing, Casing.Burst_design, min(self.Tension_Depth), "Depth", "Design"): break
+            
+            Burst_depth = Check_intersection_point(Check_intersect, "Burst", Casing.Burst_design, min(self.Tension_Depth))
+            Collapse_depth = Check_intersection_point(Check_intersect, "Collapse", Casing.Collapse_design, min(self.Tension_Depth))
+                    
+            # Set Section Casing Minimum Pada Kelipatan 3ft - [0] Length Casing Sisa - [1] Collapse Length - [2] Section Limit - [3] Burst Check ===> Kemampuan Length Casing Dari Body Yield
+            Tension_length = min([min(self.Tension_Depth), (Collapse_length//3)*3, Set_Section_max, Burst_depth, Collapse_depth])
             
             # Membatasi Nilai Minimum Section Tension_length
             if Tension_length < Set_Section_min: break
@@ -249,11 +229,11 @@ class Ten_Bix:
                     else: break
             
             # Input Variabel
-            Tension_check = Collapse_lambda(min(self.Tension_Depth) - Tension_length) * self.Tension_Resist
+            Tension_check = Tenratio(min(self.Tension_Depth) - Tension_length) * self.Tension_Resist
             if self.Tension_Resist >= max([Tension_check*Casing.DF_Tension, Tension_check + Casing.Tension_Overpull]):
                 Susunan_Casing.append(z)
-                Susunan_Collapse.append([round(Biaxial_curve(Collapse_lambda(depth)) * self.call(z, 4), 2) for depth in [min(self.Tension_Depth), min(self.Tension_Depth) - Tension_length]])
-                Susunan_Load.append([round(Collapse_lambda(depth) * self.Tension_Resist, 2) for depth in [min(self.Tension_Depth), min(self.Tension_Depth) - Tension_length]])
+                Susunan_Collapse.append([round(Biaxial_curve(Tenratio(depth)) * self.call(z, 4), 2) for depth in [min(self.Tension_Depth), min(self.Tension_Depth) - Tension_length]])
+                Susunan_Load.append([round(Tenratio(depth) * self.Tension_Resist, 2) for depth in [min(self.Tension_Depth), min(self.Tension_Depth) - Tension_length]])
                 Susunan_Depth.append([float(min(self.Tension_Depth)), float(min(self.Tension_Depth) - Tension_length)])
                 self.Tension_Depth.append(min(self.Tension_Depth) - Tension_length)
             else: break
@@ -302,12 +282,14 @@ class Ten_Bix:
         self.Tension_Table["Tension"] = [[[float(min([self.call(row,5), self.call(row,7)]))*1000, float(min([self.call(row,5), self.call(row,7)]))*1000] for row in rows] for rows in self.Tension_Table["combination"]]
         self.Tension_Table["Name"] = [[f"{self.call(row,1)} {self.call(row,2)}" for row in rows] for rows in self.Tension_Table["combination"]]
         self.Tension_Table["Collapse_resist"] = [[[float(self.call(row,4)), float(self.call(row,4))] for row in rows] for rows in self.Tension_Table["combination"]]
+        self.Tension_Table["Burst_correct"] = [[[float(self.call(row,6) / Biaxial_curve(load[0]/ten[0])), float(self.call(row,6) / Biaxial_curve(load[1]/ten[1]))] for row, ten, load in zip(rows, tens, loads)] for rows, tens, loads in zip(self.Tension_Table["combination"], self.Tension_Table["Tension"], self.Tension_Table["Load"])]
         # st.dataframe(Check_combination_sort, use_container_width=True)
         # st.dataframe(self.Tension_Table, use_container_width=True)
         
     def Concat(self, Biaxial_curve, Casing):
         def Pd_Ser(val, idx, grd): return pd.Series(val, index=idx, name=grd)
         def Pd_Con(series): return pd.concat(series, axis=1).reset_index().rename(columns={"index": "Depth"})
+        st.header(len(self.Tension_Table))
         if len(self.Tension_Table) > 10: Tension_Table = self.Tension_Table.iloc[:10]
         else: Tension_Table = self.Tension_Table
         self.Altair = pd.DataFrame(
@@ -321,6 +303,7 @@ class Ten_Bix:
                 "PD_X":[Pd_Con([Pd_Ser([v_l / v_r for v_r, v_l in zip(val_r, val_l)], idx, grd) for val_r, val_l, idx, grd in zip(vals_r, vals_l, idxs, grds)]) for vals_r, vals_l, idxs, grds in zip(Tension_Table.iloc[:,5], Tension_Table.iloc[:,2], Tension_Table.iloc[:,3], Tension_Table.iloc[:,6])],
                 "PD_Y":[Pd_Con([Pd_Ser([Biaxial_curve(v_l / v_r) for v_r, v_l in zip(val_r, val_l)], idx, grd) for val_r, val_l, idx, grd in zip(vals_r, vals_l, idxs, grds)]) for vals_r, vals_l, idxs, grds in zip(Tension_Table.iloc[:,5], Tension_Table.iloc[:,2], Tension_Table.iloc[:,3], Tension_Table.iloc[:,6])],
                 "PD_Coll_resist":[Pd_Con([Pd_Ser(val, idx, grd) for val, idx, grd in zip(vals, idxs, grds)]) for vals, idxs, grds in zip(Tension_Table.iloc[:,7], Tension_Table.iloc[:,3], Tension_Table.iloc[:,6])],
+                "PD_Burs_corect":[Pd_Con([Pd_Ser([bu/Biaxial_curve(v_l / v_r) for bu, v_r, v_l in zip(burst, val_r, val_l)], idx, grd) for burst, val_r, val_l, idx, grd in zip(bursts, vals_r, vals_l, idxs, grds)]) for bursts, vals_r, vals_l, idxs, grds in zip(Tension_Table.iloc[:,4], Tension_Table.iloc[:,5], Tension_Table.iloc[:,2], Tension_Table.iloc[:,3], Tension_Table.iloc[:,6])],
             })
         
 def OD_index(Casing_subset_OD, Parameter):
@@ -340,6 +323,8 @@ def Manual_data(Total, OD, manual, Grade_5C3):
         with Cas_Yi: st.number_input("Body Yield 1000 lb", min_value=1, value=int(manual.iloc[-1,12]) if Tot == 0 else None, key=f"Cas_Yi_{Tot}", label_visibility=Vision)
         with Cas_Bu: st.number_input("Burst (psi)", min_value=1, value=int(manual.iloc[-1,16]) if Tot == 0 else None, key=f"Cas_Bu_{Tot}", label_visibility=Vision)
         with Cas_Jo: st.number_input("Joint Strength 1000 lb", min_value=1, value=int(manual.iloc[-1,23]) if Tot == 0 else None, key=f"Cas_Jo_{Tot}", label_visibility=Vision)
+
+def Parameter_column_name(): return ["Outside Diameter (Inch)", "Nominal Weight (lbs/ft)", "Grade", "Drift Diameter (Inch)", "Collapse Resist (psi)", "Body Yield 1000 lb", "Burst (psi)", "Joint Strength 1000 lb"]
 
 def Manual_data_pandas(Session):
     Total = Session["Cas_Total"]
@@ -471,6 +456,38 @@ def Surface_Pressure(Bagian, Load, Parameter, Casing):
     elif Bagian == "Production" and Load == "Minimum Load": return Surface_Pressure.iloc[0,0] - Casing.Gg * Casing.MD if Surface_Pressure.iloc[0,1] != "SITP" else Surface_Pressure.iloc[0,0]
     elif Bagian != "Surface": return Surface_Pressure.iloc[0,0]
 
+def Check_intersect_df(burst, collapse, depth_end, depth_start, Biaxial_curve, Tenratio):
+    Check_intersect = pd.DataFrame(
+        {
+            "Depth":[depth_end + i*3 for i in range((depth_start - depth_end)//3 + 1)] + 
+            ([] if ((depth_start - depth_end)//3)*3 == (depth_start - depth_end) else [depth_start])
+        })
+    Check_intersect["Burst"] = burst/Biaxial_curve(Tenratio(Check_intersect["Depth"]))
+    Check_intersect["Collapse"] = Biaxial_curve(Tenratio(Check_intersect["Depth"])) * collapse
+    return Check_intersect
+    
+def Check_intersection_point(Check_intersect, col, design, depth_start):
+    Line_Resist = LineString(np.column_stack((Check_intersect[col], Check_intersect["Depth"])))
+    Line_Design = LineString(np.column_stack((design["Design"], design["Depth"])))
+    Intersection = Line_Resist.intersection(Line_Design)
+    try: Point_Intersection = [[sum(list(section)) for section in Intersection.xy]]
+    except: Point_Intersection = [[sum(list(section)) for section in inter.xy] for inter in Intersection.geoms]
+    return depth_start - Check_intersect[Check_intersect["Depth"] >= max([section[1] for section in Point_Intersection])].iloc[0,0]
+
+def Table_intersection(self, Tension_Table):
+    if len(Tension_Table) > 10: Table = Tension_Table.iloc[:10]
+    else: Table = Tension_Table
+    return pd.DataFrame(
+        {
+            "Name":([f"{self.call(Para,1)} {self.call(Para,2)}" for Para in Paras] for Paras in Table.iloc[:,0]),
+            "Weight":([self.call(Para,1) for Para in Paras] for Paras in Table.iloc[:,0]),
+            "Burst":([self.call(Para,6) for Para in Paras] for Paras in Table.iloc[:,0]),
+            "Collapse":([self.call(Para,4) for Para in Paras] for Paras in Table.iloc[:,0]),
+            "Tension":([min([self.call(Para,5), self.call(Para,7)])*1000 for Para in Paras] for Paras in Table.iloc[:,0]),
+            "Load":Table.iloc[:,2],
+            "Depth":Table.iloc[:,3],
+        })
+    
 def altair_chart(df, title_x, MD):
     return alt.Chart(df).mark_line().encode(
         x = alt.X("value", title=title_x), 

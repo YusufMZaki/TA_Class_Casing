@@ -265,8 +265,6 @@ with Collapse_side:
 with Tab_Tension_Biaxial:
     st.subheader("Tension Load")
     Casing_grade, Casing_combination = st.columns(2) # Pembagian Kolom Variasi Casing
-    st.subheader("Biaxial Load")
-    Casing_manual, Casing_catalog = st.columns(2) # Pembagian Kolom Chart
 
 with Casing_grade: Overpull = st.data_editor(pd.DataFrame({"Overpull Tension Load (lbs)":[100000]}), use_container_width=True, hide_index=True)
 Casing.Tension_Overpull = Overpull.iloc[0,0]
@@ -312,19 +310,37 @@ with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial)
     Catalog.Concat(Biaxial_curve, Casing)
     # st.write(round(time() - start, 2))
 
-# st.dataframe(Catalog.Altair, use_container_width=True)
+if Catalog_select == "Manual": Manual_intersection = Class_.Table_intersection(Manual, Manual.Tension_Table)
+Catalog_intersection = Class_.Table_intersection(Catalog, Catalog.Tension_Table)
+def Table_intersect_df(name, weight, depth_end, depth_start, Load_bot, Resist, burst, collapse):
+    Table_intersect = pd.DataFrame(
+        {
+            "Depth":[depth_end + i*3 for i in range((depth_start - depth_end)//3 + 1)] + 
+            ([] if ((depth_start - depth_end)//3)*3 == (depth_start - depth_end) else [depth_start])
+        })
+    Table_intersect[f"X {name}"] = ((weight * (depth_start - Table_intersect["Depth"])) + Load_bot) / Resist
+    Table_intersect[f"Y {name}"] = Biaxial_curve(Table_intersect[f"X {name}"])
+    Table_intersect[f"Burst {name}"] = burst / Table_intersect[f"Y {name}"]
+    Table_intersect[f"Collapse {name}"] = Table_intersect[f"Y {name}"] * collapse
+    return Table_intersect.set_index("Depth")
+    
 Burst_des = Class_.altair_chart(pd.melt(Casing.Burst_design, id_vars=["Depth"], value_vars=[i for i in Casing.Burst_design.columns if i != "Depth"]), "Burst (psi)", Casing.MD)
 Coll_des = Class_.altair_chart(pd.melt(Casing.Collapse_design, id_vars=["Depth"], value_vars=[i for i in Casing.Collapse_design.columns if i != "Depth"]), "Collapse (psi)", Casing.MD)    
 
 def Pd_Altair(tbl, x_axis): return Class_.altair_chart(pd.melt(tbl, id_vars=["Depth"], value_vars=[i for i in tbl.columns if i != "Depth"]), x_axis, Casing.MD)
-def Altair_sort_BiColl(self):
+def Altair_sort_Bu(self, Altair):
     
     loc = self.location
-    st.dataframe(self.Altair.iloc[loc-1,0].sort_values("Depth"), use_container_width=True, hide_index=True)
-    st.altair_chart(Pd_Altair(self.Altair.iloc[loc-1,0], "Burst (psi)") + Burst_des, theme="streamlit", use_container_width=True)
+    #  + Pd_Altair(self.Altair.iloc[loc-1,9], "Burst (psi)")
+    st.dataframe(self.Altair.iloc[loc-1,9].sort_values("Depth"), use_container_width=True, hide_index=True)
+    st.altair_chart(Burst_des + Altair, theme="streamlit", use_container_width=True)
+
+def Altair_sort_Co(self, Altair):
     
+    loc = self.location
+    #  + Pd_Altair(self.Altair.iloc[loc-1,1], "Collapse (psi)")
     st.dataframe(self.Altair.iloc[loc-1,1].sort_values("Depth"), use_container_width=True, hide_index=True)
-    st.altair_chart(Pd_Altair(self.Altair.iloc[loc-1,1], "Collapse (psi)") + Coll_des, theme="streamlit", use_container_width=True)
+    st.altair_chart(Coll_des + Altair, theme="streamlit", use_container_width=True)
     
 def Altair_sort_TenBix(self):
     
@@ -344,23 +360,30 @@ def Altair_sort_TenBix(self):
         Class_.altair_chart(Tension_Load_DF.dropna(), "Tension (lbs)", Casing.MD) + Pd_Altair(self.Altair.iloc[loc-1,2], "Tension (lbs)"),
         theme="streamlit", use_container_width=True) 
     
-def Altair_sort_Bix_XY(self):
-    
+def Altair_sort_Bix_XY(self, df):
+
     loc = self.location
-    st.write("X")
-    st.dataframe(self.Altair.iloc[loc-1,6].sort_values("Depth"), use_container_width=True, hide_index=True)
-    st.write("Y")
-    st.dataframe(self.Altair.iloc[loc-1,7].sort_values("Depth"), use_container_width=True, hide_index=True)
-    st.write("Collapse Resistance")
-    st.dataframe(self.Altair.iloc[loc-1,8].sort_values("Depth"), use_container_width=True, hide_index=True)
-    st.write("Collapse Correction")
-    st.dataframe(self.Altair.iloc[loc-1,1].sort_values("Depth"), use_container_width=True, hide_index=True)
-    st.altair_chart(Pd_Altair(self.Altair.iloc[loc-1,1], "Collapse (psi)") + Pd_Altair(self.Altair.iloc[loc-1,8], "Collapse (psi)"), theme="streamlit", use_container_width=True)
+    # st.dataframe(df, use_container_width=True)
+    df_XY = [Table_intersect_df(name, weight, int(depth[1]), int(depth[0]), load[0], tension, burst, collapse) for name, weight, depth, load, tension, burst, collapse in zip(df.iloc[loc-1,0], df.iloc[loc-1,1], df.iloc[loc-1,6], df.iloc[loc-1,5], df.iloc[loc-1,4], df.iloc[loc-1,2], df.iloc[loc-1,3])]
+    df_XY_Burst = pd.concat(reversed([df.iloc[:,2] for df in df_XY]), axis=1).rename(columns={list(col.columns)[2]:name for col, name in zip(df_XY, df.iloc[loc-1,0])})
+    df_XY_Collapse = pd.concat(reversed([df.iloc[:,3] for df in df_XY]), axis=1).rename(columns={list(col.columns)[3]:name for col, name in zip(df_XY, df.iloc[loc-1,0])})
+    with st.expander("Biaxial XY"): st.dataframe(pd.concat(reversed([df.iloc[:,:2] for df in df_XY]), axis=1), use_container_width=True)
+    df_XY_Burst_Altair = Class_.altair_chart(pd.melt(df_XY_Burst.reset_index(), id_vars=["Depth"], value_vars=[i for i in df_XY_Burst.columns if i != "Depth"]), "Burst (psi)", Casing.MD)
+    df_XY_Collapse_Altair = Class_.altair_chart(pd.melt(df_XY_Collapse.reset_index(), id_vars=["Depth"], value_vars=[i for i in df_XY_Collapse.columns if i != "Depth"]), "Collapse (psi)", Casing.MD)
     
-if Catalog_select == "Manual": 
-    with Casing_grade: Manual.location = 0 if len(Manual.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Manual.Tension_Table) > 10 else len(Manual.Tension_Table), 1)
+    st.write("Biaxial Burst Correction") #  + Pd_Altair(self.Altair.iloc[loc-1,9], "Burst (psi)")
+    st.altair_chart(df_XY_Burst_Altair + Pd_Altair(self.Altair.iloc[loc-1,0], "Burst (psi)"), theme="streamlit", use_container_width=True)
+    with st.expander("Burst Correction"): st.dataframe(df_XY_Burst, use_container_width=True)
+    st.write("Biaxial Collapse Correction") #  + Pd_Altair(self.Altair.iloc[loc-1,1], "Collapse (psi)")
+    st.altair_chart(df_XY_Collapse_Altair + Pd_Altair(self.Altair.iloc[loc-1,8], "Collapse (psi)"), theme="streamlit", use_container_width=True)
+    with st.expander("Collapse Correction"): st.dataframe(df_XY_Collapse, use_container_width=True)
+    
+    return [df_XY_Burst_Altair, df_XY_Collapse_Altair]
+    
+if Catalog_select == "Manual":
+    with Casing_grade: Manual.location = 1 if len(Manual.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Manual.Tension_Table) > 10 else len(Manual.Tension_Table), 1)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
-    Catalog.location = 0 if len(Catalog.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Catalog.Tension_Table) > 10 else len(Catalog.Tension_Table), 1)
+    Catalog.location = 1 if len(Catalog.Tension_Table) == 1 else st.slider("Casing Combination", 1, 10 if len(Catalog.Tension_Table) > 10 else len(Catalog.Tension_Table), 1)
 
 start = time()
 if Catalog_select == "Manual": 
@@ -369,9 +392,41 @@ with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial)
     Altair_sort_TenBix(Catalog)
     # st.write(round(time() - start, 2))
 
+with Tab_Tension_Biaxial:
+    st.subheader("Biaxial Load")
+    Casing_manual, Casing_catalog = st.columns(2) # Pembagian Kolom Chart
+    
 start = time()
 if Catalog_select == "Manual": 
-    with Casing_manual: Altair_sort_Bix_XY(Manual)
+    with Casing_manual: Manual_XY_Altair = Altair_sort_Bix_XY(Manual, Manual_intersection)
 with (Casing_catalog if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
-    Altair_sort_Bix_XY(Catalog)
+    Catalog_XY_Altair = Altair_sort_Bix_XY(Catalog, Catalog_intersection)
+    # st.write(round(time() - start, 2))
+
+def Casing_design_used(self): return self.Parameter.loc[[comb for comb in self.Tension_Table.iloc[self.location-1,0]]].rename(columns={col:name for col, name in zip(self.Parameter.columns, Class_.Parameter_column_name())})
+with Tab_Result:
+    manual_parameter, catalog_parameter = st.columns(2)
+    if Catalog_select == "Manual": 
+        with manual_parameter: st.dataframe(Casing_design_used(Manual), use_container_width=True)
+    with (catalog_parameter if Catalog_select == "Manual" else Tab_Result): 
+        st.dataframe(Casing_design_used(Catalog), use_container_width=True)
+    st.subheader("Casing Performance Against Burst")
+    Result_manual, Result_catalog = st.columns(2)
+    
+start = time()
+if Catalog_select == "Manual": 
+    with Result_manual: Altair_sort_Bu(Manual, Manual_XY_Altair[0])
+with (Result_catalog if Catalog_select == "Manual" else Tab_Result): 
+    Altair_sort_Bu(Catalog, Catalog_XY_Altair[0])
+    # st.write(round(time() - start, 2))
+
+with Tab_Result:
+    st.subheader("Casing Performance Against Collapse")
+    Result_manual_, Result_catalog_ = st.columns(2)
+    
+start = time()
+if Catalog_select == "Manual": 
+    with Result_manual_: Altair_sort_Co(Manual, Manual_XY_Altair[1])
+with (Result_catalog_ if Catalog_select == "Manual" else Tab_Result): 
+    Altair_sort_Co(Catalog, Catalog_XY_Altair[1])
     # st.write(round(time() - start, 2))
