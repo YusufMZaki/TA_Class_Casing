@@ -4,7 +4,7 @@ from streamlit import session_state as ss
 from time import time
 from math import ceil
 from functools import lru_cache
-import Class_ 
+import Class_
 import numpy as np
 import altair as alt 
 st.set_page_config(layout="wide")
