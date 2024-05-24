@@ -6,3 +6,4 @@ functools
 numpy
 openpyxl
 altair
+shapely
