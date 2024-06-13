@@ -14,8 +14,8 @@ Casing_data_ = pd.read_excel(io='Casing_Simplify.xlsx', skiprows=[0, 1], header=
 
 # Data Rapih Properties Casing Design
 Casing_data  = Casing_data_[Casing_data_.iloc[:, 16] != "—"]
-Grade_5C3 = ["H-40", "-50", "J-55", "K-55", "-60", 'M-65', "-70", "C-75", "E-75", "L-80", "N-80", "C-90", "C-95", "T-95", "X-95", "-100", "P-105", "G-105", "P-110", 
-             "-120", "Q-125", "-130", "S-135", "-140", "-150", "-155", "-160", "-170", "-180"]
+Grade_5C3 = ["H-40", "X-42", "X-46", "-50", "X-52", "H-55", "J-55", "K-55", "X-56", "X-60", 'M-65', "-70", "C-75", "E-75", "H-80", "L-80", "N-80", "C-90", "H-90", "C-95", "H-95", "S-95", "T-95", "X-95", "-100", "P-105", "G-105", "P-110", 
+             "C-110", "H-110", "P-110", "-120", "H-125", "Q-125", "V-130", "S-135", "V-140", "V-150", "-155", "-160", "-170", "-180"]
 
 # Variasi Data OD Casing Design
 Casing_subset_OD = Casing_data.drop_duplicates(subset='1_Size Outside Diameter in. D').reset_index(drop="index")
