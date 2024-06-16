@@ -26,33 +26,46 @@ def OD_df(OD):
         use_container_width=True, num_rows="dynamic", disabled=["1_Size Outside Diameter in. D"])
 
 if __name__ == "__main__":
-
+    st.write("4.5 Inch")
     st.session_state["OD_4.5"] = OD_df(4.5)
-
+    
+    st.write("5.0 Inch")
     st.session_state["OD_5.0"] = OD_df(5.0)
-
+    
+    st.write("5.5 Inch")
     st.session_state["OD_5.5"] = OD_df(5.5)
-
+    
+    st.write("6.625 Inch")
     st.session_state["OD_6.625"] = OD_df(6.625)
-
+    
+    st.write("7.0 Inch")
     st.session_state["OD_7.0"] = OD_df(7.0)
-
+    
+    st.write("7.625 Inch")
     st.session_state["OD_7.625"] = OD_df(7.625)
-
+    
+    st.write("8.625 Inch")
     st.session_state["OD_8.625"] = OD_df(8.625)
-
+    
+    st.write("9.625 Inch")
     st.session_state["OD_9.625"] = OD_df(9.625)
-
+    
+    st.write("10.75 Inch")
     st.session_state["OD_10.75"] = OD_df(10.75)
-
+    
+    st.write("11.75 Inch")
     st.session_state["OD_11.75"] = OD_df(11.75)
-
+    
+    st.write("13.375 Inch")
     st.session_state["OD_13.375"] = OD_df(13.375)
-
+    
+    st.write("16.0 Inch")
     st.session_state["OD_16.0"] = OD_df(16.0)
-
+    
+    st.write("18.625 Inch")
     st.session_state["OD_18.625"] = OD_df(18.625)
-
+    
+    st.write("20.0 Inch")
     st.session_state["OD_20.0"] = OD_df(20.0)
 
 Session = st.session_state
