@@ -38,8 +38,7 @@ with st.expander("Pilih Bagian dan Load Casing Design"):
     # Catalog atau Manual
     with Expander_3: Catalog_select = st.selectbox('Catalog',("Catalog", "Manual"), label_visibility="collapsed")
 
-st.title(f'_{Bagian}_ is :blue[cool] :sunglasses:')
-st.header(Bagian + " Casing Design")
+st.title(f'_{Bagian}_ Casing Design')
 
 # Persamaan Pressure
 Pressure_eq = lambda Density, Depth : 0.052 * Density * Depth
