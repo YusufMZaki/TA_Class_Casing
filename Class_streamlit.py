@@ -86,7 +86,7 @@ with Tab_Variabel:
         with Cas_Manual: Class_.Manual_data(ss["Cas_Total"], Casing.OD, Casing_data[Casing_data['1_Size Outside Diameter in. D'] == Casing.OD], Grade_5C3)
         Manual_data = pd.concat([Casing_data[Casing_data.iloc[:,0] == 0], Class_.Manual_data_pandas(ss).dropna()], ignore_index = True)
     
-    import pages.Custom_Casing as Custom_Casing
+    import Custom_Casing as Custom_Casing
     if Catalog_select == "Manual":
         try: st.write(Custom_Casing.Session[f"OD_{Casing.OD}"])
         except:
