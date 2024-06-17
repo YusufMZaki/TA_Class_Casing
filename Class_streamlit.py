@@ -218,12 +218,19 @@ with Tab_Data:
         cement_delta = [cement_list[0]] + [cement_list[x + 1] - cement_list[x] for x in range(jumlah)]
         cement_delta_pressure = [Pressure_eq(density, depth) for density, depth in zip([Casing.Drill] + ppg_list, cement_delta)]
 
+with Tab_Design: 
+    with st.form("my_Design"):
+        
+        # Tab
+        Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Burst - Collapse", "Tension - Biaxial", "Casing Design"])
+        
+        # Every form must have a submit button.
+        submitted_design = st.form_submit_button("Re-Calculate")
+
+        with Tab_Burst_Collapse: Burst_side, Collapse_side = st.columns(2) # Pembagian Kolom Burst-Collapse
+
 if submitted:
 
-    # Tab
-    with Tab_Design: Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Burst - Collapse", "Tension - Biaxial", "Casing Design"])
-
-    with Tab_Burst_Collapse: Burst_side, Collapse_side = st.columns(2) # Pembagian Kolom Burst-Collapse
     with Burst_side:
         st.subheader("Burst Load")
         # Safety Factor
