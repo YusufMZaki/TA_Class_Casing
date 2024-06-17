@@ -100,7 +100,7 @@ with Tab_Variabel:
         with Cas_Manual: Class_.Manual_data(ss["Cas_Total"], Casing.OD, Casing_data[Casing_data['1_Size Outside Diameter in. D'] == Casing.OD], Grade_5C3)
         Manual_data = pd.concat([Casing_data[Casing_data.iloc[:,0] == 0], Class_.Manual_data_pandas(ss).dropna()], ignore_index = True)
     
-    import Custom_Casing as Custom_Casing
+    import Custom_Casing
     if Catalog_select == "Manual":
         try: st.write(Custom_Casing.Session[f"OD_{Casing.OD}"])
         except:
@@ -218,18 +218,13 @@ with Tab_Data:
         cement_delta = [cement_list[0]] + [cement_list[x + 1] - cement_list[x] for x in range(jumlah)]
         cement_delta_pressure = [Pressure_eq(density, depth) for density, depth in zip([Casing.Drill] + ppg_list, cement_delta)]
 
+if submitted: st.rerun()
+
 with Tab_Design: 
-    with st.form("my_Design"):
-        
-        # Tab
-        Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Burst - Collapse", "Tension - Biaxial", "Casing Design"])
-        
-        # Every form must have a submit button.
-        submitted_design = st.form_submit_button("Re-Calculate")
 
-        with Tab_Burst_Collapse: Burst_side, Collapse_side = st.columns(2) # Pembagian Kolom Burst-Collapse
-
-if submitted:
+    # Tab
+    Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Burst - Collapse", "Tension - Biaxial", "Casing Design"])
+    with Tab_Burst_Collapse: Burst_side, Collapse_side = st.columns(2) # Pembagian Kolom Burst-Collapse
 
     with Burst_side:
         st.subheader("Burst Load")
