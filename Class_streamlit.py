@@ -9,10 +9,6 @@ import numpy as np
 import altair as alt 
 st.set_page_config(layout="wide")
 
-form = st.form("my_form")
-form.slider("Inside the form")
-form.form_submit_button("Submit")
-
 # Data Mentah Properties Casing Design
 Casing_data_ = pd.read_excel(io='Casing_Simplify.xlsx', skiprows=[0, 1], header=[0]) 
 
@@ -78,6 +74,17 @@ if Bagian == "Production": Parameter = [5.5, 11000, 3, "Minimum", 4.001, "Maximu
 
 # Tab
 Tab_Variabel, Tab_Subs, Tab_Cement, Tab_Burst_Collapse, Tab_Tension_Biaxial, Tab_Result = st.tabs(["Casing Variable", "Subsurface Variable", "Mud - Cement", "Burst - Collapse", "Tension - Biaxial", "Casing Design"])
+
+with st.form("my_form"):
+    with st.popover("Casing Variable", use_container_width=True):
+        st.write("Inside the form")
+        slider_val = st.slider("Form slider")
+        checkbox_val = st.checkbox("Form checkbox")
+
+    # Every form must have a submit button.
+    submitted = st.form_submit_button("Submit")
+    if submitted:
+        st.write("slider", slider_val, "checkbox", checkbox_val)
 
 # Tab Variabel
 with Tab_Variabel: 
