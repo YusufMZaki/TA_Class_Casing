@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from streamlit import session_state as ss
-from time import time
+from time import time, sleep
 from math import ceil
 from functools import lru_cache
 import Class_ 
@@ -308,7 +308,8 @@ with Casing_grade:
     if Catalog_select == "Manual": Grade_drop = st.multiselect("Casing Grade", Manual.Para_df.iloc[:,2].drop_duplicates())
     else: Grade_drop = st.multiselect("Casing Grade", Catalog.Para_df.iloc[:,2].drop_duplicates())
 if Catalog_select == "Manual": Manual.Parameter_sort(Grade_drop)
-Catalog.Parameter_sort(Grade_drop)
+try: Catalog.Parameter_sort(Grade_drop)
+except: pass
 
 # Penentuan Section Max-Min Casing 
 Set_Section_max = Casing.Section_alt if Casing.Section == "Minimum" else Casing.Section_value
@@ -322,12 +323,14 @@ start = time()
 if Catalog_select == "Manual": 
     with Casing_grade: Manual.Design("Manual", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
-    Catalog.Design("API 5C2", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
+    try: Catalog.Design("API 5C2", Iterasi_max, Casing, Biaxial_curve, Biaxial_ratio, Force, Set_Section_min, Set_Section_max)
+    except: pass
 
 if Catalog_select == "Manual": 
     with Casing_grade: Manual.Concat(Biaxial_curve, Casing)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial):
-    Catalog.Concat(Biaxial_curve, Casing)
+    try: Catalog.Concat(Biaxial_curve, Casing)
+    except: pass
 
 if Catalog_select == "Manual": Manual_intersection = Class_.Table_intersection(Manual, Manual.Tension_Table)
 Catalog_intersection = Class_.Table_intersection(Catalog, Catalog.Tension_Table)
@@ -407,7 +410,8 @@ with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial)
 if Catalog_select == "Manual": 
     with Casing_grade: Altair_sort_TenBix(Manual)
 with (Casing_combination if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
-    Altair_sort_TenBix(Catalog)
+    try: Altair_sort_TenBix(Catalog)
+    except: st.info("Catalog is incapable")
 
 with Tab_Tension_Biaxial:
     st.subheader("Biaxial Load")
@@ -416,7 +420,8 @@ with Tab_Tension_Biaxial:
 if Catalog_select == "Manual": 
     with Casing_manual: Manual_XY_Altair = Altair_sort_Bix_XY(Manual, Manual_intersection)
 with (Casing_catalog if Catalog_select == "Manual" else Tab_Tension_Biaxial): 
-    Catalog_XY_Altair = Altair_sort_Bix_XY(Catalog, Catalog_intersection)
+    try: Catalog_XY_Altair = Altair_sort_Bix_XY(Catalog, Catalog_intersection)
+    except: pass
 
 def Casing_design_used(self): return self.Parameter.loc[[comb for comb in self.Tension_Table.iloc[self.location-1,0]]].rename(columns={col:name for col, name in zip(self.Parameter.columns, Class_.Parameter_column_name())})
 with Tab_Result:
@@ -424,14 +429,16 @@ with Tab_Result:
     if Catalog_select == "Manual": 
         with manual_parameter: st.dataframe(Casing_design_used(Manual), use_container_width=True)
     with (catalog_parameter if Catalog_select == "Manual" else Tab_Result): 
-        st.dataframe(Casing_design_used(Catalog), use_container_width=True)
+        try: st.dataframe(Casing_design_used(Catalog), use_container_width=True)
+        except: st.info("Catalog is incapable")
     st.subheader("Casing Performance Against Burst")
     Result_manual, Result_catalog = st.columns(2)
     
 if Catalog_select == "Manual": 
     with Result_manual: Altair_sort_Bu(Manual, Manual_XY_Altair[0])
 with (Result_catalog if Catalog_select == "Manual" else Tab_Result): 
-    Altair_sort_Bu(Catalog, Catalog_XY_Altair[0])
+    try: Altair_sort_Bu(Catalog, Catalog_XY_Altair[0])
+    except: pass
 
 with Tab_Result:
     st.subheader("Casing Performance Against Collapse")
@@ -440,5 +447,12 @@ with Tab_Result:
 if Catalog_select == "Manual": 
     with Result_manual_: Altair_sort_Co(Manual, Manual_XY_Altair[1])
 with (Result_catalog_ if Catalog_select == "Manual" else Tab_Result): 
-    Altair_sort_Co(Catalog, Catalog_XY_Altair[1])
+    try: Altair_sort_Co(Catalog, Catalog_XY_Altair[1])
+    except: 
+        st.toast("Catalog is incapable")
+        sleep(1.5)
+        st.toast("Catalog is incapable")
+        sleep(1.5)
+        st.toast("Catalog is incapable")
+        sleep(1.5)
     st.write(round(time() - start, 2))

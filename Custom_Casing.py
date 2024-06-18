@@ -8,21 +8,21 @@ Grade_5C3 = ["H-40", "X-42", "X-46", "-50", "X-52", "H-55", "J-55", "K-55", "X-5
 def OD_df(OD):
     pd_manual = pd.DataFrame(
         {
-            "1_Size Outside Diameter in. D":[OD], "2_Nominal Weight, Threadsand Coupling lb/ft":[np.nan], "3_Grade":[np.nan], "6_Drift Diameter in.":[np.nan], 
+            "1_Size Outside Diameter in. D":[OD], "2_Nominal Weight, Threadsand Coupling lb/ft":[np.nan], "3_Grade":["Q-125"], "6_Drift Diameter in.":[np.nan], 
             "12_Collapse Resistance psi":[np.nan], "13_Pipe Body Yield 1000 lb":[np.nan], "17_Same Grade":[np.nan], "24_Same Grade":[np.nan]
         })
-    return st.data_editor(
+    OD_df_df = st.data_editor(
         pd_manual, column_config=
         {
-            "3_Grade":st.column_config.SelectboxColumn("Grade", required=True, options=Grade_5C3),
             "1_Size Outside Diameter in. D":st.column_config.NumberColumn("Outside Diameter, OD (Inch)", required=True, default=OD),
             "2_Nominal Weight, Threadsand Coupling lb/ft":st.column_config.NumberColumn("Nominal Weight, Wa (lbs/ft)", required=True, step=1), 
-            "6_Drift Diameter in.":st.column_config.NumberColumn("Drift Diameter (Inch)", required=True, step=0.01),
+            "3_Grade":st.column_config.SelectboxColumn("Grade", required=True, options=Grade_5C3),
+            "6_Drift Diameter in.":st.column_config.NumberColumn("Drift Diameter (Inch)", required=True, step=0.001),
             "12_Collapse Resistance psi":st.column_config.NumberColumn("Collapse Resistance (psi)", required=True, step=1), 
             "13_Pipe Body Yield 1000 lb":st.column_config.NumberColumn("Pipe Body Yield 1000 lb", required=True, step=1),
             "17_Same Grade":st.column_config.NumberColumn("Burst (psi)", required=True, step=1),
             "24_Same Grade":st.column_config.NumberColumn("Joint Strength 1000 lb", required=True, step=1)
         }, 
         use_container_width=True, num_rows="dynamic", disabled=["1_Size Outside Diameter in. D"])
-
+    return OD_df_df
 def OD_df_concat(data, custom): return pd.concat([data[data.iloc[:,0] == 0], custom], ignore_index = True)

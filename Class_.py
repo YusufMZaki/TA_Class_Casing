@@ -353,11 +353,16 @@ def Section(Parameter, MD):
             use_container_width=True, hide_index=True)
 
 def Drift(Parameter, Casing_subset_drift):
+    option = Casing_subset_drift['6_Drift Diameter in.'].sort_values(ascending=True)
     return st.data_editor(
-        pd.DataFrame({"Casing Drift Diameter (Inch)":[Parameter[4] if len(Casing_subset_drift[Casing_subset_drift.iloc[:,5] == Parameter[4]]) != 0 else Casing_subset_drift.iloc[0,5]], "Drift":[Parameter[5]]}),
+        pd.DataFrame(
+            {
+                "Casing Drift Diameter (Inch)":[Parameter[4] if len(Casing_subset_drift[Casing_subset_drift.iloc[:,5] == Parameter[4]]) != 0 else Casing_subset_drift.iloc[0,5]], 
+                "Drift":[Parameter[5]]
+            }),
             column_config=
             {
-                "Casing Drift Diameter (Inch)":st.column_config.SelectboxColumn(options=(Casing_subset_drift['6_Drift Diameter in.'].sort_values(ascending=True)), required=True), 
+                "Casing Drift Diameter (Inch)":st.column_config.SelectboxColumn(options=option, required=True), 
                 "Drift":st.column_config.SelectboxColumn(options=["Minimum", "Maximum"], required=True)
             },
             use_container_width=True, hide_index=True)
