@@ -1,0 +1,11 @@
+{
+  "name": "Python with Conda",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/conda:2.0.1": {
+      "version": "latest",
+      "addCondaForge": true
+    }
+  },
+  "postCreateCommand": "conda install -y python=3.12"
+}
