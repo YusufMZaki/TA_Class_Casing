@@ -19,7 +19,7 @@ numpy==1.26.4
 openpyxl==3.1.5
 packaging==24.2
 pandas==2.1.4
-pillow==10.4.0
+pillow==13.0.0
 protobuf==4.25.9
 pyarrow==25.0.1
 pydeck==0.9.3
